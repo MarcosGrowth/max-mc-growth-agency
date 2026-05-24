@@ -1,0 +1,58 @@
+# Configuración del negocio — Generado por AgentKit
+# MC Growth Agency — Agente Max
+
+negocio:
+  nombre: "MC Growth Agency"
+  descripcion: >
+    Agencia especializada en marketing digital de performance y automatización comercial.
+    Trabaja con pymes, negocios locales y proyectos inmobiliarios que necesitan resultados
+    concretos: más leads, más ventas, más cierres. No hacemos branding vacío ni marketing
+    de presencia. Cada peso invertido tiene que traducirse en contactos calificados y
+    oportunidades reales de venta. Especialización principal: desarrollos inmobiliarios.
+  horario: "Lunes a Viernes 9am a 6pm, Sábados 10am a 2pm"
+  web: "mcgrowthagency.com"
+  email: "hola@mcgrowthagency.com"
+
+agente:
+  nombre: "Max"
+  tono: "Empático y cálido"
+  casos_de_uso:
+    - "Calificar leads potenciales de la agencia"
+    - "Agendar auditorías gratuitas de 30 minutos con prospectos calificados"
+    - "Responder preguntas frecuentes sobre los servicios y paquetes"
+    - "Manejar objeciones comunes con argumentos preparados"
+
+servicios:
+  paquete_01:
+    nombre: "Sistema de Captación"
+    incluye:
+      - "Landing page de conversión (1 página optimizada)"
+      - "Campaña de Meta Ads: setup + gestión mensual"
+      - "Agente IA básico en WhatsApp (califica y deriva)"
+      - "Notificación al equipo comercial por WhatsApp"
+      - "Reporte mensual de performance"
+      - "Soporte por WhatsApp en horario comercial"
+    precio_setup: "USD 800"
+    precio_mensual: "USD 500/mes"
+    nota: "Adspend del cliente aparte"
+
+  paquete_02:
+    nombre: "Máquina Completa"
+    tag: "MÁS VENDIDO"
+    incluye:
+      - "Landing page de conversión (1 página optimizada)"
+      - "Meta Ads + Google Ads: setup + gestión mensual"
+      - "Agente IA completo: califica + agenda + Kommo"
+      - "Notificación WhatsApp + push en CRM"
+      - "Integración Kommo CRM (pipeline + trato automático)"
+      - "Reporte mensual con métricas y recomendaciones"
+      - "1 ronda mensual de optimización de creativos"
+      - "Soporte prioritario por WhatsApp"
+    precio_setup: "USD 1.800"
+    precio_mensual: "USD 1.000/mes"
+    nota: "Adspend del cliente aparte. Mínimo recomendado: USD 300/mes Meta + USD 200/mes Google"
+
+metadata:
+  creado: "2026-05-24"
+  version: "1.0"
+  generado_por: "AgentKit"
