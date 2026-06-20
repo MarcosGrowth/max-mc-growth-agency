@@ -13,13 +13,13 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
-async def notificar_lead_calificado(telefono: str, resumen: str) -> bool:
+async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
     """
     Envía una notificación a Telegram cuando Max califica un lead.
 
     Args:
         telefono: Número del prospecto
-        resumen: Últimos mensajes de la conversación (contexto)
+        info: Dict con nombre, rubro, presupuesto, interes extraídos por Claude
 
     Returns:
         True si la notificación fue enviada exitosamente
@@ -28,15 +28,22 @@ async def notificar_lead_calificado(telefono: str, resumen: str) -> bool:
         logger.warning("TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados — notificación omitida")
         return False
 
-    # Limpiar el número para mostrar de forma amigable
     telefono_limpio = telefono.replace("@s.whatsapp.net", "").replace("@c.us", "")
+
+    nombre = info.get("nombre", "No indicó")
+    rubro = info.get("rubro", "No indicó")
+    presupuesto = info.get("presupuesto", "No indicó")
+    interes = info.get("interes", "No indicó")
 
     mensaje = (
         "🔥 *LEAD CALIFICADO — MC Growth Agency*\n\n"
         f"📱 *WhatsApp:* +{telefono_limpio}\n"
+        f"👤 *Nombre:* {nombre}\n"
+        f"🏢 *Rubro:* {rubro}\n"
+        f"💰 *Presupuesto en ads:* {presupuesto}\n"
+        f"🎯 *Interés:* {interes}\n"
         f"🕐 *Hora:* {_hora_actual()}\n\n"
-        f"*Contexto de la conversacion:*\n{resumen}\n\n"
-        "👆 _Seguimiento manual desde el numero principal de la agencia_"
+        "👆 _Hacer seguimiento desde el numero principal_"
     )
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"

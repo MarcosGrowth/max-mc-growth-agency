@@ -7,6 +7,7 @@ y genera respuestas usando la API de Anthropic Claude.
 """
 
 import os
+import json
 import yaml
 import logging
 from anthropic import AsyncAnthropic
@@ -105,3 +106,44 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> str:
     except Exception as e:
         logger.error(f"Error Claude API: {e}")
         return obtener_mensaje_error()
+
+
+async def extraer_info_lead(historial: list[dict]) -> dict:
+    """
+    Usa Claude Haiku para extraer datos clave del lead de la conversación.
+    Rápido y barato — solo se llama una vez al calificar.
+    """
+    conversacion = "\n".join(
+        f"{'PROSPECTO' if m['role'] == 'user' else 'MAX'}: {m['content']}"
+        for m in historial
+    )
+
+    fallback = {"nombre": "No indicó", "rubro": "No indicó", "presupuesto": "No indicó", "interes": "No indicó"}
+
+    try:
+        response = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            system="Sos un extractor de datos. Respondés SOLO con JSON válido, sin explicaciones ni markdown.",
+            messages=[{
+                "role": "user",
+                "content": (
+                    "De esta conversación de WhatsApp de una agencia de marketing, extraé:\n"
+                    "- nombre: nombre del prospecto (si lo mencionó, sino 'No indicó')\n"
+                    "- rubro: industria o tipo de negocio\n"
+                    "- presupuesto: cuánto invierte o está dispuesto a invertir en publicidad\n"
+                    "- interes: qué le interesa específicamente de los servicios\n\n"
+                    f"Conversación:\n{conversacion}\n\n"
+                    'Respondé SOLO con este JSON (sin markdown):\n'
+                    '{"nombre": "...", "rubro": "...", "presupuesto": "...", "interes": "..."}'
+                )
+            }]
+        )
+        texto = response.content[0].text.strip()
+        # Limpiar si viene con markdown
+        if texto.startswith("```"):
+            texto = texto.split("```")[1].lstrip("json").strip()
+        return json.loads(texto)
+    except Exception as e:
+        logger.error(f"Error extrayendo info del lead: {e}")
+        return fallback

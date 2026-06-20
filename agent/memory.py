@@ -47,9 +47,14 @@ class Lead(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telefono: Mapped[str] = mapped_column(String(50), unique=True, index=True)
-    notificado: Mapped[bool] = mapped_column(Boolean, default=False)    # Telegram enviado
-    cerrado: Mapped[bool] = mapped_column(Boolean, default=False)        # Cliente ganado
-    descartado: Mapped[bool] = mapped_column(Boolean, default=False)     # No avanzó
+    notificado: Mapped[bool] = mapped_column(Boolean, default=False)
+    cerrado: Mapped[bool] = mapped_column(Boolean, default=False)
+    descartado: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Datos extraídos de la conversación
+    nombre: Mapped[str] = mapped_column(String(100), default="No indicó")
+    rubro: Mapped[str] = mapped_column(String(100), default="No indicó")
+    presupuesto: Mapped[str] = mapped_column(String(100), default="No indicó")
+    interes: Mapped[str] = mapped_column(Text, default="No indicó")
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -125,10 +130,24 @@ async def registrar_lead(telefono: str) -> bool:
         if existente:
             return False  # Ya registrado
 
-        lead = Lead(telefono=telefono, notificado=True, cerrado=False)
+        lead = Lead(telefono=telefono, notificado=True, cerrado=False, descartado=False)
         session.add(lead)
         await session.commit()
         return True
+
+
+async def actualizar_info_lead(telefono: str, nombre: str, rubro: str, presupuesto: str, interes: str):
+    """Guarda los datos extraídos de la conversación en el lead."""
+    async with async_session() as session:
+        query = select(Lead).where(Lead.telefono == telefono)
+        result = await session.execute(query)
+        lead = result.scalar_one_or_none()
+        if lead:
+            lead.nombre = nombre
+            lead.rubro = rubro
+            lead.presupuesto = presupuesto
+            lead.interes = interes
+            await session.commit()
 
 
 async def marcar_lead_cerrado(telefono: str) -> bool:
@@ -174,6 +193,10 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "notificado": l.notificado,
                 "cerrado": l.cerrado,
                 "descartado": l.descartado,
+                "nombre": l.nombre,
+                "rubro": l.rubro,
+                "presupuesto": l.presupuesto,
+                "interes": l.interes,
                 "timestamp": l.timestamp.isoformat(),
             }
             for l in leads
