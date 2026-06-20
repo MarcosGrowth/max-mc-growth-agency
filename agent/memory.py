@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, select, Integer
+from sqlalchemy import String, Text, DateTime, select, Integer, Boolean
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -38,6 +38,17 @@ class Mensaje(Base):
     telefono: Mapped[str] = mapped_column(String(50), index=True)
     role: Mapped[str] = mapped_column(String(20))       # "user" o "assistant"
     content: Mapped[str] = mapped_column(Text)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Lead(Base):
+    """Lead calificado por Max — para el dashboard y seguimiento."""
+    __tablename__ = "leads"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    telefono: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    notificado: Mapped[bool] = mapped_column(Boolean, default=False)   # Telegram enviado
+    cerrado: Mapped[bool] = mapped_column(Boolean, default=False)       # Marcado como cerrado
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -94,6 +105,61 @@ async def obtener_historial(telefono: str, limite: int = 20) -> list[dict]:
         return [
             {"role": msg.role, "content": msg.content}
             for msg in mensajes
+        ]
+
+
+async def registrar_lead(telefono: str) -> bool:
+    """
+    Registra un lead calificado. Si ya existe, no hace nada.
+
+    Returns:
+        True si fue registrado por primera vez (nuevo lead)
+        False si ya existía (ya fue notificado antes)
+    """
+    async with async_session() as session:
+        query = select(Lead).where(Lead.telefono == telefono)
+        result = await session.execute(query)
+        existente = result.scalar_one_or_none()
+
+        if existente:
+            return False  # Ya registrado
+
+        lead = Lead(telefono=telefono, notificado=True, cerrado=False)
+        session.add(lead)
+        await session.commit()
+        return True
+
+
+async def marcar_lead_cerrado(telefono: str) -> bool:
+    """Marca un lead como cerrado (cliente ganado)."""
+    async with async_session() as session:
+        query = select(Lead).where(Lead.telefono == telefono)
+        result = await session.execute(query)
+        lead = result.scalar_one_or_none()
+        if lead:
+            lead.cerrado = True
+            await session.commit()
+            return True
+        return False
+
+
+async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
+    """Retorna todos los leads registrados para el dashboard."""
+    async with async_session() as session:
+        query = select(Lead).order_by(Lead.timestamp.desc())
+        if solo_abiertos:
+            query = query.where(Lead.cerrado == False)
+        result = await session.execute(query)
+        leads = result.scalars().all()
+        return [
+            {
+                "id": l.id,
+                "telefono": l.telefono,
+                "notificado": l.notificado,
+                "cerrado": l.cerrado,
+                "timestamp": l.timestamp.isoformat(),
+            }
+            for l in leads
         ]
 
 
