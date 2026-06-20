@@ -14,7 +14,7 @@ from fastapi.responses import PlainTextResponse, HTMLResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, obtener_leads, marcar_lead_cerrado
+from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, obtener_leads, marcar_lead_cerrado, marcar_lead_descartado
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado
 
@@ -157,27 +157,54 @@ async def cerrar_lead(telefono: str):
     return {"status": "ok", "mensaje": f"Lead {telefono} marcado como cerrado"}
 
 
+@app.post("/leads/{telefono}/descartar")
+async def descartar_lead(telefono: str):
+    """API: marca un lead como descartado (no avanzó)."""
+    ok = await marcar_lead_descartado(telefono)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Lead no encontrado")
+    return {"status": "ok", "mensaje": f"Lead {telefono} marcado como descartado"}
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
     """Dashboard web en tiempo real — leads calificados por Max."""
     leads = await obtener_leads()
     total = len(leads)
-    calificados = sum(1 for l in leads if not l["cerrado"])
+    en_seguimiento = sum(1 for l in leads if not l["cerrado"] and not l["descartado"])
     cerrados = sum(1 for l in leads if l["cerrado"])
+    descartados = sum(1 for l in leads if l["descartado"])
+    tasa = round(cerrados / (total - descartados) * 100) if (total - descartados) > 0 else 0
 
     filas = ""
     for lead in leads:
         tel = lead["telefono"].replace("@s.whatsapp.net", "").replace("@c.us", "")
         fecha = lead["timestamp"][:16].replace("T", " ")
-        estado = "Cerrado" if lead["cerrado"] else "Calificado"
-        color = "#22c55e" if lead["cerrado"] else "#f59e0b"
-        boton = "" if lead["cerrado"] else f'<button onclick="cerrar(\'{lead["telefono"]}\')" style="background:#22c55e;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">Cerrado</button>'
+
+        if lead["cerrado"]:
+            estado = "Cerrado"
+            color = "#22c55e"
+            botones = ""
+        elif lead["descartado"]:
+            estado = "Descartado"
+            color = "#64748b"
+            botones = ""
+        else:
+            estado = "En seguimiento"
+            color = "#f59e0b"
+            botones = (
+                f'<button onclick="cerrar(\'{lead["telefono"]}\')" '
+                f'style="background:#22c55e;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin-right:6px;">Cerrado</button>'
+                f'<button onclick="descartar(\'{lead["telefono"]}\')" '
+                f'style="background:#475569;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">Descartar</button>'
+            )
+
         filas += f"""
         <tr>
           <td style="padding:12px 16px;">+{tel}</td>
           <td style="padding:12px 16px;">{fecha}</td>
           <td style="padding:12px 16px;"><span style="background:{color};color:white;padding:3px 10px;border-radius:12px;font-size:12px;">{estado}</span></td>
-          <td style="padding:12px 16px;">{boton}</td>
+          <td style="padding:12px 16px;">{botones}</td>
         </tr>"""
 
     html = f"""<!DOCTYPE html>
@@ -192,8 +219,8 @@ async def dashboard():
     .header {{ background: #1e293b; padding: 24px 32px; border-bottom: 1px solid #334155; }}
     .header h1 {{ font-size: 22px; font-weight: 700; color: #f1f5f9; }}
     .header p {{ color: #94a3b8; font-size: 14px; margin-top: 4px; }}
-    .stats {{ display: flex; gap: 16px; padding: 24px 32px; }}
-    .stat {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px; flex: 1; }}
+    .stats {{ display: flex; gap: 16px; padding: 24px 32px; flex-wrap: wrap; }}
+    .stat {{ background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px 24px; flex: 1; min-width: 140px; }}
     .stat .num {{ font-size: 36px; font-weight: 800; color: #f1f5f9; }}
     .stat .label {{ color: #94a3b8; font-size: 13px; margin-top: 4px; }}
     .table-wrap {{ margin: 0 32px 32px; background: #1e293b; border: 1px solid #334155; border-radius: 12px; overflow: hidden; }}
@@ -212,24 +239,31 @@ async def dashboard():
     <p>MC Growth Agency · Actualizacion automatica cada 30 segundos</p>
   </div>
   <div class="stats">
-    <div class="stat"><div class="num">{total}</div><div class="label">Total leads calificados</div></div>
-    <div class="stat"><div class="num" style="color:#f59e0b;">{calificados}</div><div class="label">En seguimiento</div></div>
-    <div class="stat"><div class="num" style="color:#22c55e;">{cerrados}</div><div class="label">Cerrados (clientes)</div></div>
-    <div class="stat"><div class="num" style="color:#60a5fa;">{round(cerrados/total*100) if total > 0 else 0}%</div><div class="label">Tasa de conversion</div></div>
+    <div class="stat"><div class="num">{total}</div><div class="label">Leads calificados</div></div>
+    <div class="stat"><div class="num" style="color:#f59e0b;">{en_seguimiento}</div><div class="label">En seguimiento</div></div>
+    <div class="stat"><div class="num" style="color:#22c55e;">{cerrados}</div><div class="label">Cerrados</div></div>
+    <div class="stat"><div class="num" style="color:#64748b;">{descartados}</div><div class="label">Descartados</div></div>
+    <div class="stat"><div class="num" style="color:#60a5fa;">{tasa}%</div><div class="label">Tasa de conversion</div></div>
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>WhatsApp</th><th>Fecha</th><th>Estado</th><th>Accion</th></tr></thead>
+      <thead><tr><th>WhatsApp</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead>
       <tbody>{filas if filas else '<tr><td colspan="4" style="padding:32px;text-align:center;color:#64748b;">Sin leads aun. Max esta listo para calificar.</td></tr>'}</tbody>
     </table>
   </div>
   <p class="refresh">Ultima actualizacion: {leads[0]["timestamp"][:16].replace("T", " ") if leads else "—"} · <a href="/dashboard">Actualizar</a></p>
   <script>
     async function cerrar(telefono) {{
-      if (!confirm('Marcar este lead como cerrado?')) return;
+      if (!confirm('Marcar como Cerrado (cliente ganado)?')) return;
       const r = await fetch('/leads/' + encodeURIComponent(telefono) + '/cerrar', {{method: 'POST'}});
       if (r.ok) location.reload();
-      else alert('Error al cerrar el lead');
+      else alert('Error');
+    }}
+    async function descartar(telefono) {{
+      if (!confirm('Marcar como Descartado (no avanzo)?')) return;
+      const r = await fetch('/leads/' + encodeURIComponent(telefono) + '/descartar', {{method: 'POST'}});
+      if (r.ok) location.reload();
+      else alert('Error');
     }}
     setTimeout(() => location.reload(), 30000);
   </script>

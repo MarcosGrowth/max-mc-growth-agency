@@ -47,8 +47,9 @@ class Lead(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telefono: Mapped[str] = mapped_column(String(50), unique=True, index=True)
-    notificado: Mapped[bool] = mapped_column(Boolean, default=False)   # Telegram enviado
-    cerrado: Mapped[bool] = mapped_column(Boolean, default=False)       # Marcado como cerrado
+    notificado: Mapped[bool] = mapped_column(Boolean, default=False)    # Telegram enviado
+    cerrado: Mapped[bool] = mapped_column(Boolean, default=False)        # Cliente ganado
+    descartado: Mapped[bool] = mapped_column(Boolean, default=False)     # No avanzó
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -138,6 +139,21 @@ async def marcar_lead_cerrado(telefono: str) -> bool:
         lead = result.scalar_one_or_none()
         if lead:
             lead.cerrado = True
+            lead.descartado = False
+            await session.commit()
+            return True
+        return False
+
+
+async def marcar_lead_descartado(telefono: str) -> bool:
+    """Marca un lead como descartado (no avanzó)."""
+    async with async_session() as session:
+        query = select(Lead).where(Lead.telefono == telefono)
+        result = await session.execute(query)
+        lead = result.scalar_one_or_none()
+        if lead:
+            lead.descartado = True
+            lead.cerrado = False
             await session.commit()
             return True
         return False
@@ -157,6 +173,7 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "telefono": l.telefono,
                 "notificado": l.notificado,
                 "cerrado": l.cerrado,
+                "descartado": l.descartado,
                 "timestamp": l.timestamp.isoformat(),
             }
             for l in leads
