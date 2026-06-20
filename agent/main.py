@@ -63,6 +63,12 @@ async def health_check():
     }
 
 
+@app.head("/")
+async def health_check_head():
+    """HEAD para UptimeRobot — responde 200 sin cuerpo."""
+    return PlainTextResponse("", status_code=200)
+
+
 @app.get("/webhook")
 async def webhook_verificacion(request: Request):
     """
