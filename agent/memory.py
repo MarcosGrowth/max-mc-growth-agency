@@ -95,13 +95,16 @@ async def inicializar_db():
             for nombre, tipo in nuevas.items():
                 if nombre not in existentes:
                     await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {nombre} {tipo}"))
-        async with async_session() as session:
-            if not (await session.execute(select(Canal))).scalars().first():
-                token = os.getenv("META_ACCESS_TOKEN")
-                phone_id = os.getenv("META_PHONE_NUMBER_ID")
-                if token and phone_id:
-                    session.add(Canal(nombre="WhatsApp principal", tipo="whatsapp", phone_number_id=phone_id, access_token=token, verify_token=os.getenv("META_VERIFY_TOKEN", "mcgrowth-webhook-2026")))
-                    await session.commit()
+
+    # Se consulta después de cerrar la transacción anterior. En PostgreSQL,
+    # otro connection no puede ver la tabla hasta que create_all fue confirmado.
+    async with async_session() as session:
+        if not (await session.execute(select(Canal))).scalars().first():
+            token = os.getenv("META_ACCESS_TOKEN")
+            phone_id = os.getenv("META_PHONE_NUMBER_ID")
+            if token and phone_id:
+                session.add(Canal(nombre="WhatsApp principal", tipo="whatsapp", phone_number_id=phone_id, access_token=token, verify_token=os.getenv("META_VERIFY_TOKEN", "mcgrowth-webhook-2026")))
+                await session.commit()
 
 
 async def obtener_canal(phone_number_id: str | None):
