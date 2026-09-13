@@ -9,11 +9,14 @@ Funciona con cualquier proveedor (Whapi, Meta, Twilio) gracias a la capa de prov
 import os
 import json
 import secrets
+import hmac
+import hashlib
+import time
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException, Depends, status
+from fastapi import FastAPI, Request, HTTPException, Depends, status, Form
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.responses import PlainTextResponse, HTMLResponse
+from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
@@ -36,17 +39,35 @@ logger = logging.getLogger("agentkit")
 proveedor = obtener_proveedor()
 PORT = int(os.getenv("PORT", 8000))
 BOT_ENABLED = True
-security = HTTPBasic()
+security = HTTPBasic(auto_error=False)
+SESSION_COOKIE = "mc_growth_session"
 
 
-def autenticar_dashboard(credentials: HTTPBasicCredentials = Depends(security)):
+def _firma_sesion(timestamp: str) -> str:
+    secreto = os.getenv("DASHBOARD_PASSWORD", "")
+    return hmac.new(secreto.encode(), timestamp.encode(), hashlib.sha256).hexdigest()
+
+
+def _sesion_valida(request: Request) -> bool:
+    cookie = request.cookies.get(SESSION_COOKIE, "")
+    try:
+        timestamp, firma = cookie.split(".", 1)
+        vigente = time.time() - int(timestamp) < 60 * 60 * 12
+        return vigente and secrets.compare_digest(firma, _firma_sesion(timestamp))
+    except (ValueError, TypeError):
+        return False
+
+
+def autenticar_dashboard(request: Request, credentials: HTTPBasicCredentials | None = Depends(security)):
     """Protege el dashboard sin exponer credenciales en el código."""
     usuario = os.getenv("DASHBOARD_USERNAME")
     clave = os.getenv("DASHBOARD_PASSWORD")
     if not usuario or not clave:
         raise HTTPException(status_code=503, detail="Dashboard no configurado: faltan credenciales")
-    usuario_ok = secrets.compare_digest(credentials.username, usuario)
-    clave_ok = secrets.compare_digest(credentials.password, clave)
+    if _sesion_valida(request):
+        return usuario
+    usuario_ok = bool(credentials) and secrets.compare_digest(credentials.username, usuario)
+    clave_ok = bool(credentials) and secrets.compare_digest(credentials.password, clave)
     if not (usuario_ok and clave_ok):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -349,8 +370,27 @@ async def dashboard(_usuario: str = Depends(autenticar_dashboard)):
     return html
 
 
+@app.get("/login", response_class=HTMLResponse)
+async def login_page():
+    return HTMLResponse("""<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acceso · MC Growth OS</title><style>body{margin:0;background:#09090b;color:#f4f4f5;font:14px system-ui;display:grid;place-items:center;min-height:100vh}.box{width:min(360px,calc(100% - 40px));background:#111113;border:1px solid #27272a;border-radius:16px;padding:28px}.mark{display:inline-block;background:#f47b20;color:#09090b;border-radius:9px;padding:9px;font-weight:900;margin-bottom:16px}h1{font-size:22px;margin:0 0 6px}p{color:#a1a1aa;margin:0 0 22px}label{display:block;color:#a1a1aa;font-size:12px;margin:13px 0 6px}input{width:100%;padding:11px;border-radius:8px;border:1px solid #3f3f46;background:#18181b;color:#fff;box-sizing:border-box}button{width:100%;margin-top:20px;padding:11px;border:0;border-radius:8px;background:#f47b20;color:#09090b;font-weight:800;cursor:pointer}</style></head><body><form class="box" method="post"><div class="mark">MC</div><h1>MC Growth OS</h1><p>Ingresá para ver tus oportunidades.</p><label>Usuario</label><input name="usuario" autocomplete="username" required><label>Contraseña</label><input name="clave" type="password" autocomplete="current-password" required><button>Ingresar al dashboard</button></form></body></html>""")
+
+
+@app.post("/login")
+async def login(usuario: str = Form(...), clave: str = Form(...)):
+    esperado_usuario = os.getenv("DASHBOARD_USERNAME", "")
+    esperado_clave = os.getenv("DASHBOARD_PASSWORD", "")
+    if not esperado_usuario or not esperado_clave or not secrets.compare_digest(usuario, esperado_usuario) or not secrets.compare_digest(clave, esperado_clave):
+        return HTMLResponse("<p style='font-family:system-ui;padding:30px'>Usuario o contraseña incorrectos. <a href='/login'>Volver</a></p>", status_code=401)
+    timestamp = str(int(time.time()))
+    response = RedirectResponse("/dashboard", status_code=303)
+    response.set_cookie(SESSION_COOKIE, timestamp + "." + _firma_sesion(timestamp), httponly=True, secure=ENVIRONMENT == "production", samesite="lax", max_age=60 * 60 * 12)
+    return response
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
-async def dashboard_v2(_usuario: str = Depends(autenticar_dashboard)):
+async def dashboard_v2(request: Request):
+    if not _sesion_valida(request):
+        return RedirectResponse("/login", status_code=303)
     """Dashboard CRM: pipeline, conversaciones, sentimiento y canales."""
     return HTMLResponse("""<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MC Growth OS</title><style>
 :root{--bg:#09090b;--p:#111113;--p2:#18181b;--l:#27272a;--t:#f4f4f5;--m:#a1a1aa;--o:#f47b20}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:14px system-ui,sans-serif}.top{height:70px;border-bottom:1px solid var(--l);display:flex;justify-content:space-between;align-items:center;padding:0 30px}.brand{display:flex;align-items:center;gap:12px;font-weight:800}.mark{background:var(--o);color:#09090b;border-radius:9px;padding:9px;font-weight:900}.brand small{display:block;color:var(--m);font-size:11px;font-weight:400}.live{color:#86efac;background:#052e16;padding:7px 11px;border-radius:99px;font-size:12px}.wrap{max-width:1500px;margin:auto;padding:28px 30px}.intro h1{margin:0 0 5px;font-size:28px;letter-spacing:-.04em}.intro p{margin:0;color:var(--m)}.tabs{display:flex;gap:5px;border-bottom:1px solid var(--l);margin:25px 0 20px}.tab{background:none;color:var(--m);padding:11px 16px;border-bottom:2px solid transparent}.tab.active{color:var(--t);border-color:var(--o)}.panel{display:none}.panel.active{display:block}.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:22px}.stat,.channel,.card{background:var(--p);border:1px solid var(--l);border-radius:14px}.stat{padding:17px}.stat b{font-size:28px;display:block}.stat span{color:var(--m);font-size:12px}.pipeline{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.stage{background:#0e0e10;border:1px solid var(--l);border-radius:14px;padding:13px;min-height:280px}.stage h3{font-size:13px;margin:0 0 13px;display:flex;justify-content:space-between}.stage h3 span{color:var(--m)}.stage[data-stage=seguimiento] h3{color:#fbbf24}.stage[data-stage=cerrado] h3{color:#86efac}.stage[data-stage=descartado] h3{color:#a1a1aa}.card{padding:14px;margin-bottom:10px}.cardtop{display:flex;justify-content:space-between;gap:8px}.name{font-weight:700}.phone{color:var(--m);font-size:12px;margin-top:3px}.pill{font-size:11px;padding:4px 7px;border-radius:99px;background:#27272a}.positive{background:#86efac;color:#09090b}.neutral{background:#fde68a;color:#09090b}.negative{background:#fca5a5;color:#09090b}.data{margin:12px 0;line-height:1.5;font-size:12px}.data strong{color:#fff}.muted{color:var(--m)}.actions{display:flex;gap:7px}.actions button,.connect{border:0;border-radius:8px;padding:7px 10px;background:#3f3f46;color:#fff;font-size:12px;cursor:pointer}.win{background:#166534!important}.lose{background:#3f3f46!important}.empty{text-align:center;color:#52525b;padding:35px 5px;font-size:12px}.channels{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.channel{padding:18px}.channel h3{margin:11px 0 4px}.channel p{color:var(--m);font-size:12px;line-height:1.5;min-height:36px}.icon{font-size:25px}.status{color:#86efac;font-size:11px}.status.off{color:var(--m)}.connect{width:100%;background:var(--o);color:#09090b;font-weight:700}.connect.off{background:#27272a;color:#fff}.note{margin-top:18px;padding:14px;color:var(--m);border:1px solid var(--l);border-radius:12px;font-size:12px;line-height:1.5}.overlay{display:none;position:fixed;inset:0;background:#000b;z-index:5;padding:5vh 4vw}.modal{max-width:760px;max-height:90vh;overflow:auto;margin:auto;background:var(--p);border:1px solid var(--l);border-radius:14px;padding:22px}.modalhead{display:flex;justify-content:space-between;border-bottom:1px solid var(--l);padding-bottom:14px}.close{background:none;color:var(--m);font-size:22px}.chat{padding-top:16px;display:flex;flex-direction:column;gap:10px}.bubble{max-width:82%;padding:10px 13px;border-radius:13px;white-space:pre-wrap;line-height:1.45}.bubble.user{background:#27272a}.bubble.assistant{align-self:flex-end;background:#7c3f12}.time{display:block;color:var(--m);font-size:10px;margin-top:5px}@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.pipeline{grid-template-columns:1fr}.channels{grid-template-columns:repeat(2,1fr)}.wrap{padding:22px 15px}}@media(max-width:520px){.channels{grid-template-columns:1fr}}
