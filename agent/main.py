@@ -39,6 +39,7 @@ logger = logging.getLogger("agentkit")
 
 # Proveedor de WhatsApp (Whapi.cloud, configurado en .env)
 proveedor = obtener_proveedor()
+instagram = None
 PORT = int(os.getenv("PORT", 8000))
 BOT_ENABLED = True
 security = HTTPBasic(auto_error=False)
@@ -209,6 +210,34 @@ async def webhook_handler(request: Request):
 
     except Exception as e:
         logger.error(f"Error en webhook: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/instagram/webhook")
+async def instagram_verificacion(request: Request):
+    from agent.providers.instagram import ProveedorInstagram
+    resultado = await ProveedorInstagram().validar_webhook(request)
+    if resultado is not None:
+        return PlainTextResponse(str(resultado))
+    raise HTTPException(status_code=403, detail="Verificación de Instagram inválida")
+
+
+@app.post("/instagram/webhook")
+async def instagram_webhook(request: Request):
+    """Recibe DMs de Instagram y los procesa con el mismo Max."""
+    from agent.providers.instagram import ProveedorInstagram
+    ig = ProveedorInstagram()
+    try:
+        mensajes = await ig.parsear_webhook(request)
+        for msg in mensajes:
+            historial = await obtener_historial(msg.telefono)
+            respuesta = await generar_respuesta(msg.texto, historial)
+            await guardar_mensaje(msg.telefono, "user", msg.texto)
+            await guardar_mensaje(msg.telefono, "assistant", respuesta)
+            await ig.enviar_mensaje(msg.telefono, respuesta)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"Error en webhook Instagram: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
