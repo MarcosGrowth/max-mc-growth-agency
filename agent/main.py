@@ -20,7 +20,7 @@ from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead
+from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado
 
@@ -217,6 +217,12 @@ async def api_leads(_usuario: str = Depends(autenticar_dashboard)):
 async def api_conversacion(telefono: str, _usuario: str = Depends(autenticar_dashboard)):
     """API: devuelve todos los mensajes de la conversación del lead."""
     return {"telefono": telefono, "messages": await obtener_conversacion(telefono)}
+
+
+@app.get("/conversaciones")
+async def api_conversaciones(_usuario: str = Depends(autenticar_dashboard)):
+    """API: todos los contactos que hablaron con Max, calificados o no."""
+    return {"conversaciones": await obtener_conversaciones()}
 
 
 @app.post("/leads/{telefono}/cerrar")
@@ -432,8 +438,9 @@ async function openChat(t,n){var d=await (await fetch('/leads/'+t+'/conversation
 async function loadChannels(){var d=await (await fetch('/api/channels')).json();document.getElementById('channels').innerHTML=d.channels.map(function(c){var on=c.id==='whatsapp'&&d.bot_enabled,title=c.id==='whatsapp'?(on?'Conectado':'Pausado'):'No configurado';return '<div class="channel"><div class="icon">'+c.name[0]+'</div><h3>'+c.name+'</h3><div class="status '+(on?'':'off')+'">● '+title+'</div><p>'+(c.id==='whatsapp'?'Meta Cloud API · Bot Max':c.id==='linkedin'?'Disponible en una fase posterior':'Requiere credenciales y Webhook')+'</p><button class="connect '+(on?'':'off')+'" onclick="channelAction(\''+c.id+'\')">'+(c.id==='whatsapp'?(on?'Desconectar bot':'Conectar bot'):'Configurar canal')+'</button></div>'}).join('')}
 async function channelAction(id){if(id!=='whatsapp'){alert('Este canal está preparado para conectar sus credenciales y webhook.');return}await fetch('/api/channels/whatsapp/toggle',{method:'POST'});loadChannels()}
 async function seedDemo(){var r=await fetch('/api/demo/seed',{method:'POST'});var d=await r.json();alert(d.mensaje+' ('+d.creados+' nuevos)');load()}
+async function loadInbox(){var d=await (await fetch('/conversaciones')).json(), leadsMap={};leads.forEach(function(l){leadsMap[l.telefono]=l});var box=document.getElementById('inbox-list');if(!box)return;box.innerHTML=(d.conversaciones||[]).map(function(c){var l=leadsMap[c.telefono],nombre=l?(l.nombre||'Sin nombre'):'Contacto nuevo',estado=l?(stage(l)==='seguimiento'?'Calificado · seguimiento':stage(l)==='cerrado'?'Cerrado':'Descartado'):'En conversación';return '<article class="card"><div class="cardtop"><div><div class="name">'+esc(nombre)+'</div><div class="phone">+'+esc(c.telefono.replace('@s.whatsapp.net','').replace('@c.us',''))+'</div></div><span class="pill">'+estado+'</span></div><div class="data"><div><strong>Mensajes:</strong> '+c.mensajes+'</div><div class="muted">Último contacto: '+new Date(c.ultimo_mensaje).toLocaleString('es-AR')+'</div></div><div class="actions"><button onclick="openChat(\''+encodeURIComponent(c.telefono)+'\',\''+esc(nombre)+'\')">Ver conversación</button></div></article>'}).join('')||'<div class="empty">Todavía no hay conversaciones.</div>'}
 document.querySelector('.top').insertAdjacentHTML('beforeend','<button class="connect" style="width:auto;margin-right:20px">Cargar datos demo</button>');document.querySelector('.top .connect').onclick=seedDemo;
-document.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){document.querySelectorAll('.tab,.panel').forEach(function(x){x.classList.remove('active')});b.classList.add('active');document.getElementById(b.dataset.tab).classList.add('active');if(b.dataset.tab==='canales')loadChannels()}});load();setInterval(load,30000);
+document.querySelector('.tabs').insertAdjacentHTML('beforeend','<button class="tab" data-tab="inbox">Bandeja</button>');document.querySelector('main').insertAdjacentHTML('beforeend','<section id="inbox" class="panel"><div id="inbox-list" class="pipeline" style="grid-template-columns:repeat(3,1fr)"></div><div class="note">Acá aparecen todos los contactos que hablaron con Max, incluso los que todavía no completaron la calificación.</div></section>');document.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){document.querySelectorAll('.tab,.panel').forEach(function(x){x.classList.remove('active')});b.classList.add('active');document.getElementById(b.dataset.tab).classList.add('active');if(b.dataset.tab==='canales')loadChannels();if(b.dataset.tab==='inbox')loadInbox()}});load();setInterval(load,30000);
 </script></body></html>""")
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return response

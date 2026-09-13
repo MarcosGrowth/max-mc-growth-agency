@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, select, Integer, Boolean, text
+from sqlalchemy import String, Text, DateTime, select, Integer, Boolean, text, func
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -249,6 +249,21 @@ async def obtener_conversacion(telefono: str) -> list[dict]:
             {"role": mensaje.role, "content": mensaje.content,
              "timestamp": mensaje.timestamp.isoformat()}
             for mensaje in result.scalars().all()
+        ]
+
+
+async def obtener_conversaciones() -> list[dict]:
+    """Lista todos los contactos que iniciaron una conversación con Max."""
+    async with async_session() as session:
+        consulta = (
+            select(Mensaje.telefono, func.max(Mensaje.timestamp), func.count(Mensaje.id))
+            .group_by(Mensaje.telefono)
+            .order_by(func.max(Mensaje.timestamp).desc())
+        )
+        result = await session.execute(consulta)
+        return [
+            {"telefono": telefono, "ultimo_mensaje": ultimo.isoformat(), "mensajes": cantidad}
+            for telefono, ultimo, cantidad in result.all()
         ]
 
 
