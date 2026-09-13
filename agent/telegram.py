@@ -34,6 +34,8 @@ async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
     rubro = info.get("rubro", "No indicó")
     presupuesto = info.get("presupuesto", "No indicó")
     interes = info.get("interes", "No indicó")
+    sentiment_score = info.get("sentiment_score", 50)
+    sentiment_label = info.get("sentiment_label", "neutral")
 
     mensaje = (
         "🔥 *LEAD CALIFICADO — MC Growth Agency*\n\n"
@@ -42,6 +44,7 @@ async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
         f"🏢 *Rubro:* {rubro}\n"
         f"💰 *Presupuesto en ads:* {presupuesto}\n"
         f"🎯 *Interés:* {interes}\n"
+        f"🧠 *Sentimiento:* {sentiment_score}/100 ({sentiment_label})\n"
         f"🕐 *Hora:* {_hora_actual()}\n\n"
         "👆 _Hacer seguimiento desde el numero principal_"
     )

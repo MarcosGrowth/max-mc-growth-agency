@@ -7,6 +7,7 @@ Funciona con cualquier proveedor (Whapi, Meta, Twilio) gracias a la capa de prov
 """
 
 import os
+import json
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException
@@ -14,7 +15,7 @@ from fastapi.responses import PlainTextResponse, HTMLResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, marcar_lead_cerrado, marcar_lead_descartado
+from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado
 
@@ -32,6 +33,7 @@ logger = logging.getLogger("agentkit")
 # Proveedor de WhatsApp (Whapi.cloud, configurado en .env)
 proveedor = obtener_proveedor()
 PORT = int(os.getenv("PORT", 8000))
+BOT_ENABLED = True
 
 
 @asynccontextmanager
@@ -95,6 +97,8 @@ async def webhook_handler(request: Request):
     5. Enviar respuesta por WhatsApp
     """
     try:
+        if not BOT_ENABLED:
+            return {"status": "paused"}
         # Parsear el webhook — el proveedor normaliza el formato
         mensajes = await proveedor.parsear_webhook(request)
 
@@ -139,6 +143,9 @@ async def webhook_handler(request: Request):
                         rubro=info.get("rubro", "No indicó"),
                         presupuesto=info.get("presupuesto", "No indicó"),
                         interes=info.get("interes", "No indicó"),
+                        sentiment_score=info.get("sentiment_score", 50),
+                        sentiment_label=info.get("sentiment_label", "neutral"),
+                        resumen=info.get("resumen", "No disponible"),
                     )
                     await notificar_lead_calificado(msg.telefono, info)
                     logger.info(f"Lead calificado notificado: {msg.telefono}")
@@ -159,6 +166,12 @@ async def api_leads():
     return {"leads": leads, "total": len(leads)}
 
 
+@app.get("/leads/{telefono}/conversation")
+async def api_conversacion(telefono: str):
+    """API: devuelve todos los mensajes de la conversación del lead."""
+    return {"telefono": telefono, "messages": await obtener_conversacion(telefono)}
+
+
 @app.post("/leads/{telefono}/cerrar")
 async def cerrar_lead(telefono: str):
     """API: marca un lead como cerrado (cliente ganado)."""
@@ -177,7 +190,33 @@ async def descartar_lead(telefono: str):
     return {"status": "ok", "mensaje": f"Lead {telefono} marcado como descartado"}
 
 
-@app.get("/dashboard", response_class=HTMLResponse)
+@app.post("/leads/{telefono}/estado")
+async def cambiar_estado(telefono: str, request: Request):
+    datos = await request.json()
+    estado = datos.get("estado", "seguimiento")
+    if not await cambiar_estado_lead(telefono, estado):
+        raise HTTPException(status_code=400, detail="Estado o lead inválido")
+    return {"status": "ok", "estado": estado}
+
+
+@app.get("/api/channels")
+async def api_channels():
+    return {"bot_enabled": BOT_ENABLED, "channels": [
+        {"id": "whatsapp", "name": "WhatsApp", "status": "connected" if proveedor.__class__.__name__ == "ProveedorMeta" else "backup", "available": True},
+        {"id": "instagram", "name": "Instagram", "status": "not_configured", "available": False},
+        {"id": "facebook", "name": "Facebook Messenger", "status": "not_configured", "available": False},
+        {"id": "linkedin", "name": "LinkedIn", "status": "not_configured", "available": False},
+    ]}
+
+
+@app.post("/api/channels/whatsapp/toggle")
+async def toggle_whatsapp():
+    global BOT_ENABLED
+    BOT_ENABLED = not BOT_ENABLED
+    return {"status": "ok", "enabled": BOT_ENABLED}
+
+
+@app.get("/dashboard-old", response_class=HTMLResponse)
 async def dashboard():
     """Dashboard web en tiempo real — leads calificados por Max."""
     leads = await obtener_leads()
@@ -288,3 +327,21 @@ async def dashboard():
 </body>
 </html>"""
     return html
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard_v2():
+    """Dashboard CRM: pipeline, conversaciones, sentimiento y canales."""
+    return HTMLResponse("""<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MC Growth OS</title><style>
+:root{--bg:#09090b;--p:#111113;--p2:#18181b;--l:#27272a;--t:#f4f4f5;--m:#a1a1aa;--o:#f47b20}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--t);font:14px system-ui,sans-serif}.top{height:70px;border-bottom:1px solid var(--l);display:flex;justify-content:space-between;align-items:center;padding:0 30px}.brand{display:flex;align-items:center;gap:12px;font-weight:800}.mark{background:var(--o);color:#09090b;border-radius:9px;padding:9px;font-weight:900}.brand small{display:block;color:var(--m);font-size:11px;font-weight:400}.live{color:#86efac;background:#052e16;padding:7px 11px;border-radius:99px;font-size:12px}.wrap{max-width:1500px;margin:auto;padding:28px 30px}.intro h1{margin:0 0 5px;font-size:28px;letter-spacing:-.04em}.intro p{margin:0;color:var(--m)}.tabs{display:flex;gap:5px;border-bottom:1px solid var(--l);margin:25px 0 20px}.tab{background:none;color:var(--m);padding:11px 16px;border-bottom:2px solid transparent}.tab.active{color:var(--t);border-color:var(--o)}.panel{display:none}.panel.active{display:block}.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:22px}.stat,.channel,.card{background:var(--p);border:1px solid var(--l);border-radius:14px}.stat{padding:17px}.stat b{font-size:28px;display:block}.stat span{color:var(--m);font-size:12px}.pipeline{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.stage{background:#0e0e10;border:1px solid var(--l);border-radius:14px;padding:13px;min-height:280px}.stage h3{font-size:13px;margin:0 0 13px;display:flex;justify-content:space-between}.stage h3 span{color:var(--m)}.stage[data-stage=seguimiento] h3{color:#fbbf24}.stage[data-stage=cerrado] h3{color:#86efac}.stage[data-stage=descartado] h3{color:#a1a1aa}.card{padding:14px;margin-bottom:10px}.cardtop{display:flex;justify-content:space-between;gap:8px}.name{font-weight:700}.phone{color:var(--m);font-size:12px;margin-top:3px}.pill{font-size:11px;padding:4px 7px;border-radius:99px;background:#27272a}.positive{background:#86efac;color:#09090b}.neutral{background:#fde68a;color:#09090b}.negative{background:#fca5a5;color:#09090b}.data{margin:12px 0;line-height:1.5;font-size:12px}.data strong{color:#fff}.muted{color:var(--m)}.actions{display:flex;gap:7px}.actions button,.connect{border:0;border-radius:8px;padding:7px 10px;background:#3f3f46;color:#fff;font-size:12px;cursor:pointer}.win{background:#166534!important}.lose{background:#3f3f46!important}.empty{text-align:center;color:#52525b;padding:35px 5px;font-size:12px}.channels{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.channel{padding:18px}.channel h3{margin:11px 0 4px}.channel p{color:var(--m);font-size:12px;line-height:1.5;min-height:36px}.icon{font-size:25px}.status{color:#86efac;font-size:11px}.status.off{color:var(--m)}.connect{width:100%;background:var(--o);color:#09090b;font-weight:700}.connect.off{background:#27272a;color:#fff}.note{margin-top:18px;padding:14px;color:var(--m);border:1px solid var(--l);border-radius:12px;font-size:12px;line-height:1.5}.overlay{display:none;position:fixed;inset:0;background:#000b;z-index:5;padding:5vh 4vw}.modal{max-width:760px;max-height:90vh;overflow:auto;margin:auto;background:var(--p);border:1px solid var(--l);border-radius:14px;padding:22px}.modalhead{display:flex;justify-content:space-between;border-bottom:1px solid var(--l);padding-bottom:14px}.close{background:none;color:var(--m);font-size:22px}.chat{padding-top:16px;display:flex;flex-direction:column;gap:10px}.bubble{max-width:82%;padding:10px 13px;border-radius:13px;white-space:pre-wrap;line-height:1.45}.bubble.user{background:#27272a}.bubble.assistant{align-self:flex-end;background:#7c3f12}.time{display:block;color:var(--m);font-size:10px;margin-top:5px}@media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.pipeline{grid-template-columns:1fr}.channels{grid-template-columns:repeat(2,1fr)}.wrap{padding:22px 15px}}@media(max-width:520px){.channels{grid-template-columns:1fr}}
++<script>
+const esc=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let leads=[]; function stage(l){return l.cerrado?'cerrado':l.descartado?'descartado':'seguimiento'}
+function card(l){var s=stage(l), score=l.sentiment_score||50; return '<article class="card" draggable="true" data-tel="'+esc(l.telefono)+'"><div class="cardtop"><div><div class="name">'+esc(l.nombre||'Sin nombre')+'</div><div class="phone">+'+esc(l.telefono.replace('@s.whatsapp.net','').replace('@c.us',''))+'</div></div><span class="pill '+esc(l.sentiment_label||'neutral')+'">'+score+'/100</span></div><div class="data"><div><strong>Rubro:</strong> '+esc(l.rubro)+'</div><div><strong>Presupuesto:</strong> '+esc(l.presupuesto)+'</div><div><strong>Interés:</strong> '+esc(l.interes)+'</div><div class="muted">'+esc(l.resumen)+'</div></div><div class="actions"><button onclick="openChat(\''+encodeURIComponent(l.telefono)+'\',\''+esc(l.nombre||l.telefono)+'\')">Ver chat</button>'+(s==='seguimiento'?'<button class="win" onclick="setStatus(\''+encodeURIComponent(l.telefono)+'\',\'cerrado\')">Cerrar</button><button onclick="setStatus(\''+encodeURIComponent(l.telefono)+'\',\'descartado\')">Descartar</button>':'')+'</div></article>'}
+async function load(){var d=await (await fetch('/leads')).json(); leads=d.leads||[]; ['seguimiento','cerrado','descartado'].forEach(function(s){var a=leads.filter(function(l){return stage(l)===s}),el=document.getElementById('col-'+s);el.innerHTML=a.length?a.map(card).join(''):'<div class="empty">Sin leads</div>';document.getElementById('count-'+s).textContent=a.length});document.getElementById('total').textContent=leads.length;document.getElementById('seguimiento').textContent=leads.filter(function(l){return stage(l)==='seguimiento'}).length;document.getElementById('cerrado').textContent=leads.filter(function(l){return stage(l)==='cerrado'}).length;document.getElementById('descartado').textContent=leads.filter(function(l){return stage(l)==='descartado'}).length;var base=leads.length-leads.filter(function(l){return l.descartado}).length;document.getElementById('conversion').textContent=(base?Math.round(leads.filter(function(l){return l.cerrado}).length/base*100):0)+'%';document.querySelectorAll('.card').forEach(function(c){c.addEventListener('dragstart',function(e){e.dataTransfer.setData('tel',c.dataset.tel)})});document.querySelectorAll('.stage').forEach(function(c){c.ondragover=function(e){e.preventDefault()};c.ondrop=function(e){setStatus(encodeURIComponent(e.dataTransfer.getData('tel')),c.dataset.stage)}})}
+async function setStatus(t,e){var r=await fetch('/leads/'+t+'/estado',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estado:e})});if(r.ok)load()}
+async function openChat(t,n){var d=await (await fetch('/leads/'+t+'/conversation')).json();document.getElementById('modal-title').textContent=n;document.getElementById('chat').innerHTML=(d.messages||[]).map(function(m){return '<div class="bubble '+m.role+'">'+esc(m.content)+'<span class="time">'+new Date(m.timestamp).toLocaleString('es-AR')+'</span></div>'}).join('')||'<div class="empty">No hay mensajes.</div>';document.getElementById('overlay').style.display='block'}function closeModal(){document.getElementById('overlay').style.display='none'}
+async function loadChannels(){var d=await (await fetch('/api/channels')).json();document.getElementById('channels').innerHTML=d.channels.map(function(c){var on=c.id==='whatsapp'&&d.bot_enabled,title=c.id==='whatsapp'?(on?'Conectado':'Pausado'):'No configurado';return '<div class="channel"><div class="icon">'+c.name[0]+'</div><h3>'+c.name+'</h3><div class="status '+(on?'':'off')+'">● '+title+'</div><p>'+(c.id==='whatsapp'?'Meta Cloud API · Bot Max':c.id==='linkedin'?'Disponible en una fase posterior':'Requiere credenciales y Webhook')+'</p><button class="connect '+(on?'':'off')+'" onclick="channelAction(\''+c.id+'\')">'+(c.id==='whatsapp'?(on?'Desconectar bot':'Conectar bot'):'Configurar canal')+'</button></div>'}).join('')}
+async function channelAction(id){if(id!=='whatsapp'){alert('Este canal está preparado para conectar sus credenciales y webhook.');return}await fetch('/api/channels/whatsapp/toggle',{method:'POST'});loadChannels()}
+document.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){document.querySelectorAll('.tab,.panel').forEach(function(x){x.classList.remove('active')});b.classList.add('active');document.getElementById(b.dataset.tab).classList.add('active');if(b.dataset.tab==='canales')loadChannels()}});load();setInterval(load,30000);
+</script></body></html>""")

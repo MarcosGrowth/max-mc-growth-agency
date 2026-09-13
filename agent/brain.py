@@ -118,7 +118,7 @@ async def extraer_info_lead(historial: list[dict]) -> dict:
         for m in historial
     )
 
-    fallback = {"nombre": "No indicó", "rubro": "No indicó", "presupuesto": "No indicó", "interes": "No indicó"}
+    fallback = {"nombre": "No indicó", "rubro": "No indicó", "presupuesto": "No indicó", "interes": "No indicó", "sentiment_score": 50, "sentiment_label": "neutral", "resumen": "No disponible"}
 
     try:
         response = await client.messages.create(
@@ -133,9 +133,12 @@ async def extraer_info_lead(historial: list[dict]) -> dict:
                     "- rubro: industria o tipo de negocio\n"
                     "- presupuesto: cuánto invierte o está dispuesto a invertir en publicidad\n"
                     "- interes: qué le interesa específicamente de los servicios\n\n"
+                    "- sentiment_score: puntaje de sentimiento del prospecto entre 0 (muy negativo) y 100 (muy positivo)\n"
+                    "- sentiment_label: una sola palabra: negativo, neutral o positivo\n"
+                    "- resumen: resumen comercial de máximo 160 caracteres\n\n"
                     f"Conversación:\n{conversacion}\n\n"
                     'Respondé SOLO con este JSON (sin markdown):\n'
-                    '{"nombre": "...", "rubro": "...", "presupuesto": "...", "interes": "..."}'
+                    '{"nombre": "...", "rubro": "...", "presupuesto": "...", "interes": "...", "sentiment_score": 0, "sentiment_label": "...", "resumen": "..."}'
                 )
             }]
         )

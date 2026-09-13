@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Text, DateTime, select, Integer, Boolean
+from sqlalchemy import String, Text, DateTime, select, Integer, Boolean, text
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -55,6 +55,9 @@ class Lead(Base):
     rubro: Mapped[str] = mapped_column(String(100), default="No indicó")
     presupuesto: Mapped[str] = mapped_column(String(100), default="No indicó")
     interes: Mapped[str] = mapped_column(Text, default="No indicó")
+    sentiment_score: Mapped[int] = mapped_column(Integer, default=50)
+    sentiment_label: Mapped[str] = mapped_column(String(30), default="neutral")
+    resumen: Mapped[str] = mapped_column(Text, default="No disponible")
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -62,6 +65,17 @@ async def inicializar_db():
     """Crea las tablas si no existen. Se llama al arrancar el servidor."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        if DATABASE_URL.startswith("sqlite"):
+            columnas = await conn.execute(text("PRAGMA table_info(leads)"))
+            existentes = {fila[1] for fila in columnas.fetchall()}
+            nuevas = {
+                "sentiment_score": "INTEGER DEFAULT 50",
+                "sentiment_label": "VARCHAR(30) DEFAULT 'neutral'",
+                "resumen": "TEXT DEFAULT 'No disponible'",
+            }
+            for nombre, tipo in nuevas.items():
+                if nombre not in existentes:
+                    await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {nombre} {tipo}"))
 
 
 async def guardar_mensaje(telefono: str, role: str, content: str):
@@ -136,7 +150,9 @@ async def registrar_lead(telefono: str) -> bool:
         return True
 
 
-async def actualizar_info_lead(telefono: str, nombre: str, rubro: str, presupuesto: str, interes: str):
+async def actualizar_info_lead(telefono: str, nombre: str, rubro: str, presupuesto: str, interes: str,
+                              sentiment_score: int = 50, sentiment_label: str = "neutral",
+                              resumen: str = "No disponible"):
     """Guarda los datos extraídos de la conversación en el lead."""
     async with async_session() as session:
         query = select(Lead).where(Lead.telefono == telefono)
@@ -147,6 +163,9 @@ async def actualizar_info_lead(telefono: str, nombre: str, rubro: str, presupues
             lead.rubro = rubro
             lead.presupuesto = presupuesto
             lead.interes = interes
+            lead.sentiment_score = max(0, min(100, int(sentiment_score or 50)))
+            lead.sentiment_label = sentiment_label or "neutral"
+            lead.resumen = resumen or "No disponible"
             await session.commit()
 
 
@@ -178,6 +197,21 @@ async def marcar_lead_descartado(telefono: str) -> bool:
         return False
 
 
+async def cambiar_estado_lead(telefono: str, estado: str) -> bool:
+    """Cambia el estado del lead desde el pipeline."""
+    if estado not in {"seguimiento", "cerrado", "descartado"}:
+        return False
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+        lead.cerrado = estado == "cerrado"
+        lead.descartado = estado == "descartado"
+        await session.commit()
+        return True
+
+
 async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
     """Retorna todos los leads registrados para el dashboard."""
     async with async_session() as session:
@@ -197,9 +231,24 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "rubro": l.rubro,
                 "presupuesto": l.presupuesto,
                 "interes": l.interes,
+                "sentiment_score": l.sentiment_score or 50,
+                "sentiment_label": l.sentiment_label or "neutral",
+                "resumen": l.resumen or "No disponible",
                 "timestamp": l.timestamp.isoformat(),
             }
             for l in leads
+        ]
+
+
+async def obtener_conversacion(telefono: str) -> list[dict]:
+    """Devuelve la conversación completa de un lead para verla en el dashboard."""
+    async with async_session() as session:
+        query = select(Mensaje).where(Mensaje.telefono == telefono).order_by(Mensaje.timestamp.asc())
+        result = await session.execute(query)
+        return [
+            {"role": mensaje.role, "content": mensaje.content,
+             "timestamp": mensaje.timestamp.isoformat()}
+            for mensaje in result.scalars().all()
         ]
 
 
