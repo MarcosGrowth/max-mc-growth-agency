@@ -12,15 +12,17 @@ import secrets
 import hmac
 import hashlib
 import time
+import csv
+import io
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends, status, Form
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead
+from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado
 
@@ -223,6 +225,50 @@ async def api_conversacion(telefono: str, _usuario: str = Depends(autenticar_das
 async def api_conversaciones(_usuario: str = Depends(autenticar_dashboard)):
     """API: todos los contactos que hablaron con Max, calificados o no."""
     return {"conversaciones": await obtener_conversaciones()}
+
+
+def _csv_response(nombre: str, encabezados: list[str], filas: list[list]) -> StreamingResponse:
+    """Genera CSV UTF-8 compatible con Excel y Google Sheets."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(encabezados)
+    writer.writerows(filas)
+    contenido = "\ufeff" + buffer.getvalue()
+    return StreamingResponse(
+        iter([contenido]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
+    )
+
+
+@app.get("/export/leads.csv")
+async def exportar_leads_csv(_usuario: str = Depends(autenticar_dashboard)):
+    """Exporta toda la base de leads sin eliminar ni modificar registros."""
+    leads = await obtener_leads()
+    filas = []
+    for lead in leads:
+        estado = "cerrado" if lead["cerrado"] else "descartado" if lead["descartado"] else "seguimiento"
+        filas.append([
+            lead["telefono"], lead["nombre"], lead["rubro"], lead["presupuesto"],
+            lead["interes"], lead["sentiment_score"], lead["sentiment_label"],
+            lead["resumen"], estado, lead["timestamp"],
+        ])
+    return _csv_response(
+        "mc-growth-leads.csv",
+        ["telefono", "nombre", "rubro", "presupuesto", "interes", "sentiment_score", "sentiment_label", "resumen", "estado", "fecha"],
+        filas,
+    )
+
+
+@app.get("/export/conversaciones.csv")
+async def exportar_conversaciones_csv(_usuario: str = Depends(autenticar_dashboard)):
+    """Exporta todos los mensajes para respaldo y auditoría."""
+    mensajes = await obtener_todos_los_mensajes()
+    return _csv_response(
+        "mc-growth-conversaciones.csv",
+        ["telefono", "role", "mensaje", "fecha"],
+        [[m["telefono"], m["role"], m["content"], m["timestamp"]] for m in mensajes],
+    )
 
 
 @app.post("/leads/{telefono}/cerrar")
@@ -442,7 +488,7 @@ document.addEventListener('click',function(e){var b=e.target.closest('.channel-a
 document.addEventListener('click',function(e){var b=e.target.closest('.open-inbox-chat');if(b){var l=leads.find(function(x){return x.telefono===b.dataset.tel});openChat(encodeURIComponent(b.dataset.tel),l?(l.nombre||b.dataset.tel):b.dataset.tel)}});
 async function seedDemo(){var r=await fetch('/api/demo/seed',{method:'POST'});var d=await r.json();alert(d.mensaje+' ('+d.creados+' nuevos)');load()}
 async function loadInbox(){var d=await (await fetch('/conversaciones')).json(),leadsMap={};leads.forEach(function(l){leadsMap[l.telefono]=l});var box=document.getElementById('inbox-list');if(!box)return;box.innerHTML=(d.conversaciones||[]).map(function(c){var l=leadsMap[c.telefono],nombre=l?(l.nombre||'Sin nombre'):'Contacto nuevo',estado=l?(stage(l)==='seguimiento'?'Calificado · seguimiento':stage(l)==='cerrado'?'Cerrado':'Descartado'):'En conversación';return '<article class="card"><div class="cardtop"><div><div class="name">'+esc(nombre)+'</div><div class="phone">+'+esc(c.telefono.replace('@s.whatsapp.net','').replace('@c.us',''))+'</div></div><span class="pill">'+estado+'</span></div><div class="data"><div><strong>Mensajes:</strong> '+c.mensajes+'</div><div class="muted">Último contacto: '+new Date(c.ultimo_mensaje).toLocaleString('es-AR')+'</div></div><div class="actions"><button class="open-inbox-chat" data-tel="'+esc(c.telefono)+'">Ver conversación</button></div></article>'}).join('')||'<div class="empty">Todavía no hay conversaciones.</div>'}
-document.querySelector('.top').insertAdjacentHTML('beforeend','<button class="connect" style="width:auto;margin-right:20px">Cargar datos demo</button>');document.querySelector('.top .connect').onclick=seedDemo;
+document.querySelector('.top').insertAdjacentHTML('beforeend','<button class="connect" style="width:auto;margin-right:8px">Cargar datos demo</button><a class="connect" style="display:inline-block;text-decoration:none;margin-right:8px" href="/export/leads.csv">Exportar leads</a><a class="connect" style="display:inline-block;text-decoration:none;margin-right:20px" href="/export/conversaciones.csv">Exportar chats</a>');document.querySelector('.top .connect').onclick=seedDemo;
 document.querySelector('.tabs').insertAdjacentHTML('beforeend','<button class="tab" data-tab="inbox">Bandeja</button>');document.querySelector('main').insertAdjacentHTML('beforeend','<section id="inbox" class="panel"><div id="inbox-list" class="pipeline" style="grid-template-columns:repeat(3,1fr)"></div><div class="note">Acá aparecen todos los contactos que hablaron con Max, incluso los que todavía no completaron la calificación.</div></section>');document.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){document.querySelectorAll('.tab,.panel').forEach(function(x){x.classList.remove('active')});b.classList.add('active');document.getElementById(b.dataset.tab).classList.add('active');if(b.dataset.tab==='canales')loadChannels();if(b.dataset.tab==='inbox')loadInbox()}});load();setInterval(load,30000);
 </script></body></html>""")
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"

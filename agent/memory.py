@@ -267,6 +267,17 @@ async def obtener_conversaciones() -> list[dict]:
         ]
 
 
+async def obtener_todos_los_mensajes() -> list[dict]:
+    """Devuelve todos los mensajes para exportación y auditoría."""
+    async with async_session() as session:
+        result = await session.execute(select(Mensaje).order_by(Mensaje.timestamp.asc()))
+        return [
+            {"telefono": m.telefono, "role": m.role, "content": m.content,
+             "timestamp": m.timestamp.isoformat()}
+            for m in result.scalars().all()
+        ]
+
+
 async def limpiar_historial(telefono: str):
     """Borra todo el historial de conversación de un número. Útil para testing."""
     async with async_session() as session:
