@@ -217,6 +217,22 @@ async def cambiar_estado_lead(telefono: str, estado: str) -> bool:
         return True
 
 
+async def eliminar_lead(telefono: str) -> bool:
+    """Elimina explícitamente un lead y su conversación asociada."""
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+
+        mensajes = await session.execute(select(Mensaje).where(Mensaje.telefono == telefono))
+        for mensaje in mensajes.scalars().all():
+            await session.delete(mensaje)
+        await session.delete(lead)
+        await session.commit()
+        return True
+
+
 async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
     """Retorna todos los leads registrados para el dashboard."""
     async with async_session() as session:
