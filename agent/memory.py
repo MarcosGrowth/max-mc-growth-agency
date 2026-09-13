@@ -66,6 +66,20 @@ class Lead(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class Canal(Base):
+    """Canal conectado al CRM. Las credenciales nunca se devuelven al navegador."""
+    __tablename__ = "canales"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    nombre: Mapped[str] = mapped_column(String(100))
+    tipo: Mapped[str] = mapped_column(String(30), default="whatsapp")
+    phone_number_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    access_token: Mapped[str] = mapped_column(Text)
+    verify_token: Mapped[str] = mapped_column(String(200), default="mcgrowth-webhook-2026")
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 async def inicializar_db():
     """Crea las tablas si no existen. Se llama al arrancar el servidor."""
     async with engine.begin() as conn:
@@ -81,6 +95,51 @@ async def inicializar_db():
             for nombre, tipo in nuevas.items():
                 if nombre not in existentes:
                     await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {nombre} {tipo}"))
+        async with async_session() as session:
+            if not (await session.execute(select(Canal))).scalars().first():
+                token = os.getenv("META_ACCESS_TOKEN")
+                phone_id = os.getenv("META_PHONE_NUMBER_ID")
+                if token and phone_id:
+                    session.add(Canal(nombre="WhatsApp principal", tipo="whatsapp", phone_number_id=phone_id, access_token=token, verify_token=os.getenv("META_VERIFY_TOKEN", "mcgrowth-webhook-2026")))
+                    await session.commit()
+
+
+async def obtener_canal(phone_number_id: str | None):
+    if not phone_number_id:
+        return None
+    async with async_session() as session:
+        result = await session.execute(select(Canal).where(Canal.phone_number_id == phone_number_id, Canal.activo == True))
+        return result.scalar_one_or_none()
+
+
+async def obtener_canales() -> list[dict]:
+    async with async_session() as session:
+        result = await session.execute(select(Canal).order_by(Canal.timestamp.asc()))
+        return [{"id": c.id, "nombre": c.nombre, "tipo": c.tipo, "phone_number_id": c.phone_number_id, "activo": c.activo, "configurado": bool(c.access_token)} for c in result.scalars().all()]
+
+
+async def guardar_canal(nombre: str, tipo: str, phone_number_id: str, access_token: str, verify_token: str) -> dict:
+    async with async_session() as session:
+        result = await session.execute(select(Canal).where(Canal.phone_number_id == phone_number_id))
+        canal = result.scalar_one_or_none()
+        if canal:
+            canal.nombre, canal.tipo, canal.access_token, canal.verify_token, canal.activo = nombre, tipo, access_token, verify_token, True
+        else:
+            canal = Canal(nombre=nombre, tipo=tipo, phone_number_id=phone_number_id, access_token=access_token, verify_token=verify_token, activo=True)
+            session.add(canal)
+        await session.commit()
+        return {"id": canal.id, "nombre": canal.nombre, "tipo": canal.tipo, "phone_number_id": canal.phone_number_id, "activo": canal.activo, "configurado": True}
+
+
+async def alternar_canal(canal_id: int) -> bool:
+    async with async_session() as session:
+        result = await session.execute(select(Canal).where(Canal.id == canal_id))
+        canal = result.scalar_one_or_none()
+        if not canal:
+            return False
+        canal.activo = not canal.activo
+        await session.commit()
+        return canal.activo
 
 
 async def guardar_mensaje(telefono: str, role: str, content: str):

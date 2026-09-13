@@ -22,7 +22,7 @@ from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse,
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, eliminar_lead
+from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado
 
@@ -151,6 +151,12 @@ async def webhook_handler(request: Request):
                 continue
 
             logger.info(f"Mensaje recibido de {msg.telefono}: {msg.texto[:80]}...")
+            proveedor_mensaje = proveedor
+            if msg.canal_id and proveedor.__class__.__name__ == "ProveedorMeta":
+                canal = await obtener_canal(msg.canal_id)
+                if canal:
+                    from agent.providers.meta import ProveedorMeta
+                    proveedor_mensaje = ProveedorMeta(canal.access_token, canal.phone_number_id, canal.verify_token)
 
             # Obtener historial ANTES de guardar el mensaje actual
             # (evita duplicados — brain.py agrega el mensaje al construir los mensajes)
@@ -164,7 +170,7 @@ async def webhook_handler(request: Request):
             await guardar_mensaje(msg.telefono, "assistant", respuesta)
 
             # Enviar respuesta por WhatsApp via el proveedor
-            enviado = await proveedor.enviar_mensaje(msg.telefono, respuesta)
+            enviado = await proveedor_mensaje.enviar_mensaje(msg.telefono, respuesta)
 
             if enviado:
                 logger.info(f"Respuesta enviada a {msg.telefono} ✓")
@@ -310,12 +316,24 @@ async def eliminar_lead_api(telefono: str, _usuario: str = Depends(autenticar_da
 
 @app.get("/api/channels")
 async def api_channels(_usuario: str = Depends(autenticar_dashboard)):
-    return {"bot_enabled": BOT_ENABLED, "channels": [
-        {"id": "whatsapp", "name": "WhatsApp", "status": "connected" if proveedor.__class__.__name__ == "ProveedorMeta" else "backup", "available": True},
+    canales = await obtener_canales()
+    return {"bot_enabled": BOT_ENABLED, "channels": canales, "other_channels": [
         {"id": "instagram", "name": "Instagram", "status": "not_configured", "available": False},
         {"id": "facebook", "name": "Facebook Messenger", "status": "not_configured", "available": False},
         {"id": "linkedin", "name": "LinkedIn", "status": "not_configured", "available": False},
     ]}
+
+
+@app.post("/api/channels")
+async def crear_canal(payload: dict, _usuario: str = Depends(autenticar_dashboard)):
+    if payload.get("tipo") != "whatsapp" or not all(payload.get(k) for k in ("nombre", "phone_number_id", "access_token")):
+        raise HTTPException(status_code=400, detail="Para WhatsApp se requiere nombre, Phone Number ID y token")
+    return await guardar_canal(payload["nombre"], "whatsapp", payload["phone_number_id"], payload["access_token"], payload.get("verify_token", os.getenv("META_VERIFY_TOKEN", "mcgrowth-webhook-2026")))
+
+
+@app.post("/api/channels/{canal_id}/toggle")
+async def toggle_canal(canal_id: int, _usuario: str = Depends(autenticar_dashboard)):
+    return {"status": "ok", "activo": await alternar_canal(canal_id)}
 
 
 @app.post("/api/demo/seed")
@@ -491,11 +509,12 @@ function card(l){var s=stage(l),score=l.sentiment_score||50;return '<article cla
 async function load(){var d=await (await fetch('/leads')).json(); leads=d.leads||[]; ['seguimiento','cerrado','descartado'].forEach(function(s){var a=leads.filter(function(l){return stage(l)===s}),el=document.getElementById('col-'+s);el.innerHTML=a.length?a.map(card).join(''):'<div class="empty">Sin leads</div>';document.getElementById('count-'+s).textContent=a.length});document.getElementById('total').textContent=leads.length;document.getElementById('seguimiento').textContent=leads.filter(function(l){return stage(l)==='seguimiento'}).length;document.getElementById('cerrado').textContent=leads.filter(function(l){return stage(l)==='cerrado'}).length;document.getElementById('descartado').textContent=leads.filter(function(l){return stage(l)==='descartado'}).length;var base=leads.length-leads.filter(function(l){return l.descartado}).length;document.getElementById('conversion').textContent=(base?Math.round(leads.filter(function(l){return l.cerrado}).length/base*100):0)+'%';document.querySelectorAll('.card').forEach(function(c){c.addEventListener('dragstart',function(e){e.dataTransfer.setData('tel',c.dataset.tel)})});document.querySelectorAll('.stage').forEach(function(c){c.ondragover=function(e){e.preventDefault()};c.ondrop=function(e){setStatus(encodeURIComponent(e.dataTransfer.getData('tel')),c.dataset.stage)}})}
 async function setStatus(t,e){var r=await fetch('/leads/'+t+'/estado',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estado:e})});if(r.ok)load()}
 async function openChat(t,n){var d=await (await fetch('/leads/'+t+'/conversation')).json();document.getElementById('modal-title').textContent=n;document.getElementById('chat').innerHTML=(d.messages||[]).map(function(m){return '<div class="bubble '+m.role+'">'+esc(m.content)+'<span class="time">'+new Date(m.timestamp).toLocaleString('es-AR')+'</span></div>'}).join('')||'<div class="empty">No hay mensajes.</div>';document.getElementById('overlay').style.display='block'}function closeModal(){document.getElementById('overlay').style.display='none'}
-async function loadChannels(){var d=await (await fetch('/api/channels')).json();document.getElementById('channels').innerHTML=d.channels.map(function(c){var on=c.id==='whatsapp'&&d.bot_enabled,title=c.id==='whatsapp'?(on?'Conectado':'Pausado'):'No configurado';return '<div class="channel"><div class="icon">'+c.name[0]+'</div><h3>'+c.name+'</h3><div class="status '+(on?'':'off')+'">● '+title+'</div><p>'+(c.id==='whatsapp'?'Meta Cloud API · Bot Max':c.id==='linkedin'?'Disponible en una fase posterior':'Requiere credenciales y Webhook')+'</p><button class="connect channel-action '+(on?'':'off')+'" data-channel="'+c.id+'">'+(c.id==='whatsapp'?(on?'Desconectar bot':'Conectar bot'):'Configurar canal')+'</button></div>'}).join('')}
-async function channelAction(id){if(id!=='whatsapp'){alert('Este canal está preparado para conectar sus credenciales y webhook.');return}await fetch('/api/channels/whatsapp/toggle',{method:'POST'});loadChannels()}
+async function loadChannels(){var d=await (await fetch('/api/channels')).json(),html=(d.channels||[]).map(function(c){var on=c.activo&&d.bot_enabled;return '<div class="channel"><div class="icon">W</div><h3>'+esc(c.nombre)+'</h3><div class="status '+(on?'':'off')+'">● '+(on?'Conectado':'Pausado')+'</div><p>WhatsApp Cloud API · '+esc(c.phone_number_id)+'</p><button class="connect channel-action '+(on?'':'off')+'" data-channel-id="'+c.id+'">'+(on?'Desconectar':'Conectar')+'</button></div>'}).join('');html+='<div class="channel"><div class="icon">＋</div><h3>Agregar WhatsApp</h3><div class="status off">● Nuevo número</div><p>Conectá otro Phone Number ID de Meta.</p><button class="connect channel-add">Agregar número</button></div>';html+=(d.other_channels||[]).map(function(c){return '<div class="channel"><div class="icon">'+c.name[0]+'</div><h3>'+c.name+'</h3><div class="status off">● Próximamente</div><p>Requiere credenciales y Webhook.</p><button class="connect off" disabled>Próximamente</button></div>'}).join('');document.getElementById('channels').innerHTML=html}
+async function channelAction(id){await fetch('/api/channels/'+id+'/toggle',{method:'POST'});loadChannels()}
+async function addChannel(){var nombre=prompt('Nombre para diferenciar este número:');if(!nombre)return;var phone=prompt('Phone Number ID de Meta:');if(!phone)return;var token=prompt('Token permanente de Meta (no lo compartas):');if(!token)return;var r=await fetch('/api/channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre:nombre,tipo:'whatsapp',phone_number_id:phone,access_token:token})});if(!r.ok){alert('No se pudo guardar el canal');return}alert('Número agregado correctamente');loadChannels()}
 document.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;var t=b.dataset.tel;if(b.classList.contains('open-chat')){var l=leads.find(function(x){return x.telefono===t});openChat(encodeURIComponent(t),l?(l.nombre||t):t)}if(b.classList.contains('close-lead'))setStatus(encodeURIComponent(t),'cerrado');if(b.classList.contains('discard-lead'))setStatus(encodeURIComponent(t),'descartado')});
 document.addEventListener('click',async function(e){var b=e.target.closest('.delete-lead');if(!b)return;if(!confirm('Eliminar definitivamente este lead y toda su conversación? Esta acción no se puede deshacer.'))return;var r=await fetch('/leads/'+encodeURIComponent(b.dataset.tel),{method:'DELETE'});if(r.ok)load();else alert('No se pudo eliminar el lead')});
-document.addEventListener('click',function(e){var b=e.target.closest('.channel-action');if(b)channelAction(b.dataset.channel)});
+document.addEventListener('click',function(e){if(e.target.closest('.channel-add'))addChannel();var b=e.target.closest('.channel-action');if(b)channelAction(b.dataset.channelId)});
 document.addEventListener('click',function(e){var b=e.target.closest('.open-inbox-chat');if(b){var l=leads.find(function(x){return x.telefono===b.dataset.tel});openChat(encodeURIComponent(b.dataset.tel),l?(l.nombre||b.dataset.tel):b.dataset.tel)}});
 async function seedDemo(){var r=await fetch('/api/demo/seed',{method:'POST'});var d=await r.json();alert(d.mensaje+' ('+d.creados+' nuevos)');load()}
 async function loadInbox(){var d=await (await fetch('/conversaciones')).json(),leadsMap={};leads.forEach(function(l){leadsMap[l.telefono]=l});var box=document.getElementById('inbox-list');if(!box)return;box.innerHTML=(d.conversaciones||[]).map(function(c){var l=leadsMap[c.telefono],nombre=l?(l.nombre||'Sin nombre'):'Contacto nuevo',estado=l?(stage(l)==='seguimiento'?'Calificado · seguimiento':stage(l)==='cerrado'?'Cerrado':'Descartado'):'En conversación';return '<article class="card"><div class="cardtop"><div><div class="name">'+esc(nombre)+'</div><div class="phone">+'+esc(c.telefono.replace('@s.whatsapp.net','').replace('@c.us',''))+'</div></div><span class="pill">'+estado+'</span></div><div class="data"><div><strong>Mensajes:</strong> '+c.mensajes+'</div><div class="muted">Último contacto: '+new Date(c.ultimo_mensaje).toLocaleString('es-AR')+'</div></div><div class="actions"><button class="open-inbox-chat" data-tel="'+esc(c.telefono)+'">Ver conversación</button></div></article>'}).join('')||'<div class="empty">Todavía no hay conversaciones.</div>'}

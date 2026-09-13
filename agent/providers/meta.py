@@ -13,10 +13,10 @@ logger = logging.getLogger("agentkit")
 class ProveedorMeta(ProveedorWhatsApp):
     """Proveedor de WhatsApp usando la API oficial de Meta (Cloud API)."""
 
-    def __init__(self):
-        self.access_token = os.getenv("META_ACCESS_TOKEN")
-        self.phone_number_id = os.getenv("META_PHONE_NUMBER_ID")
-        self.verify_token = os.getenv("META_VERIFY_TOKEN", "mcgrowth-webhook-2026")
+    def __init__(self, access_token=None, phone_number_id=None, verify_token=None):
+        self.access_token = access_token or os.getenv("META_ACCESS_TOKEN")
+        self.phone_number_id = phone_number_id or os.getenv("META_PHONE_NUMBER_ID")
+        self.verify_token = verify_token or os.getenv("META_VERIFY_TOKEN", "mcgrowth-webhook-2026")
         self.api_version = "v21.0"
 
     async def validar_webhook(self, request: Request) -> int | None:
@@ -38,6 +38,7 @@ class ProveedorMeta(ProveedorWhatsApp):
         for entry in body.get("entry", []):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
+                canal_id = value.get("metadata", {}).get("phone_number_id")
                 for msg in value.get("messages", []):
                     if msg.get("type") == "text":
                         mensajes.append(MensajeEntrante(
@@ -45,6 +46,7 @@ class ProveedorMeta(ProveedorWhatsApp):
                             texto=msg.get("text", {}).get("body", ""),
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,
+                            canal_id=canal_id,
                         ))
                     elif msg.get("type") == "audio":
                         # Audio recibido — por ahora lo ignoramos con mensaje amigable
@@ -53,6 +55,7 @@ class ProveedorMeta(ProveedorWhatsApp):
                             texto="[El usuario envió un audio]",
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,
+                            canal_id=canal_id,
                         ))
         return mensajes
 
