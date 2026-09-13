@@ -18,9 +18,14 @@ load_dotenv()
 # Configuración de base de datos desde .env
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./agentkit.db")
 
-# Si es PostgreSQL en Railway, ajustar el esquema de URL
-if DATABASE_URL.startswith("postgresql://"):
+# SQLAlchemy necesita el driver asyncpg para PostgreSQL. Aceptamos los formatos
+# que suelen entregar los proveedores cloud (postgres:// y postgresql://).
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql+postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql+postgres://", "postgresql+asyncpg://", 1)
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
