@@ -170,8 +170,14 @@ async def webhook_handler(request: Request):
                 logger.warning(f"No se pudo enviar respuesta a {msg.telefono}")
 
             # Detectar si Max propuso la auditoría gratuita (lead calificado)
+            respuesta_normalizada = respuesta.lower()
             LINK_AUDITORIA = "calendar.app.google"
-            if LINK_AUDITORIA in respuesta:
+            calificacion_explicita = (
+                "calific" in respuesta_normalizada
+                and "auditor" in respuesta_normalizada
+                and "no calific" not in respuesta_normalizada
+            )
+            if LINK_AUDITORIA in respuesta_normalizada or calificacion_explicita:
                 es_nuevo = await registrar_lead(msg.telefono)
                 if es_nuevo:
                     # Obtener historial completo para extraer info estructurada
