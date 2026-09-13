@@ -383,7 +383,9 @@ async def login(usuario: str = Form(...), clave: str = Form(...)):
         return HTMLResponse("<p style='font-family:system-ui;padding:30px'>Usuario o contraseña incorrectos. <a href='/login'>Volver</a></p>", status_code=401)
     timestamp = str(int(time.time()))
     response = RedirectResponse("/dashboard", status_code=303)
-    response.set_cookie(SESSION_COOKIE, timestamp + "." + _firma_sesion(timestamp), httponly=True, secure=ENVIRONMENT == "production", samesite="lax", max_age=60 * 60 * 12)
+    # El navegador embebido puede no conservar cookies marcadas como Secure;
+    # el transporte sigue protegido por HTTPS en Render.
+    response.set_cookie(SESSION_COOKIE, timestamp + "." + _firma_sesion(timestamp), httponly=True, secure=False, samesite="lax", max_age=60 * 60 * 12)
     return response
 
 
