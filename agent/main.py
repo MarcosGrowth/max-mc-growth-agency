@@ -250,6 +250,26 @@ async def api_channels(_usuario: str = Depends(autenticar_dashboard)):
     ]}
 
 
+@app.post("/api/demo/seed")
+async def seed_demo_data(_usuario: str = Depends(autenticar_dashboard)):
+    """Crea leads ficticios para probar el dashboard. No usa datos reales."""
+    demos = [
+        ("5491100000001", "Lucía Demo", "Desarrolladora inmobiliaria", "USD 1.000/mes", "Más leads calificados para un lanzamiento", 84, "positivo", "Tiene campaña activa y busca mejorar la calidad de sus consultas.", "seguimiento"),
+        ("5491100000002", "Tomás Demo", "Inmobiliaria", "USD 700/mes", "Automatizar la respuesta inicial", 67, "positivo", "Cuenta con equipo comercial y quiere implementar pronto.", "cerrado"),
+        ("5491100000003", "Sofía Demo", "Estudio de arquitectura", "No indicó", "Landing de conversión", 48, "neutral", "Está explorando alternativas para más adelante.", "descartado"),
+    ]
+    creados = 0
+    for telefono, nombre, rubro, presupuesto, interes, score, etiqueta, resumen, estado in demos:
+        if await registrar_lead(telefono):
+            await actualizar_info_lead(telefono, nombre, rubro, presupuesto, interes, score, etiqueta, resumen)
+            await guardar_mensaje(telefono, "user", f"Hola, soy {nombre}. Necesito ayuda para conseguir más oportunidades.")
+            await guardar_mensaje(telefono, "assistant", "¡Hola! Cuéntame un poco sobre tu negocio y qué objetivo quieres lograr.")
+            await guardar_mensaje(telefono, "user", f"Somos una {rubro.lower()} y nos interesa {interes.lower()}.")
+            await cambiar_estado_lead(telefono, estado)
+            creados += 1
+    return {"status": "ok", "creados": creados, "mensaje": "Datos demo listos"}
+
+
 @app.post("/api/channels/whatsapp/toggle")
 async def toggle_whatsapp(_usuario: str = Depends(autenticar_dashboard)):
     global BOT_ENABLED
@@ -405,6 +425,8 @@ async function setStatus(t,e){var r=await fetch('/leads/'+t+'/estado',{method:'P
 async function openChat(t,n){var d=await (await fetch('/leads/'+t+'/conversation')).json();document.getElementById('modal-title').textContent=n;document.getElementById('chat').innerHTML=(d.messages||[]).map(function(m){return '<div class="bubble '+m.role+'">'+esc(m.content)+'<span class="time">'+new Date(m.timestamp).toLocaleString('es-AR')+'</span></div>'}).join('')||'<div class="empty">No hay mensajes.</div>';document.getElementById('overlay').style.display='block'}function closeModal(){document.getElementById('overlay').style.display='none'}
 async function loadChannels(){var d=await (await fetch('/api/channels')).json();document.getElementById('channels').innerHTML=d.channels.map(function(c){var on=c.id==='whatsapp'&&d.bot_enabled,title=c.id==='whatsapp'?(on?'Conectado':'Pausado'):'No configurado';return '<div class="channel"><div class="icon">'+c.name[0]+'</div><h3>'+c.name+'</h3><div class="status '+(on?'':'off')+'">● '+title+'</div><p>'+(c.id==='whatsapp'?'Meta Cloud API · Bot Max':c.id==='linkedin'?'Disponible en una fase posterior':'Requiere credenciales y Webhook')+'</p><button class="connect '+(on?'':'off')+'" onclick="channelAction(\''+c.id+'\')">'+(c.id==='whatsapp'?(on?'Desconectar bot':'Conectar bot'):'Configurar canal')+'</button></div>'}).join('')}
 async function channelAction(id){if(id!=='whatsapp'){alert('Este canal está preparado para conectar sus credenciales y webhook.');return}await fetch('/api/channels/whatsapp/toggle',{method:'POST'});loadChannels()}
+async function seedDemo(){var r=await fetch('/api/demo/seed',{method:'POST'});var d=await r.json();alert(d.mensaje+' ('+d.creados+' nuevos)');load()}
+document.querySelector('.top').insertAdjacentHTML('beforeend','<button class="connect" style="width:auto;margin-right:20px">Cargar datos demo</button>');document.querySelector('.top .connect').onclick=seedDemo;
 document.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){document.querySelectorAll('.tab,.panel').forEach(function(x){x.classList.remove('active')});b.classList.add('active');document.getElementById(b.dataset.tab).classList.add('active');if(b.dataset.tab==='canales')loadChannels()}});load();setInterval(load,30000);
 </script></body></html>""")
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
