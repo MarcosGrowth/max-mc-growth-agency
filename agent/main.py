@@ -235,6 +235,27 @@ async def instagram_webhook(request: Request):
             await guardar_mensaje(msg.telefono, "user", msg.texto)
             await guardar_mensaje(msg.telefono, "assistant", respuesta)
             await ig.enviar_mensaje(msg.telefono, respuesta)
+            respuesta_normalizada = respuesta.lower()
+            calificacion_explicita = (
+                "calific" in respuesta_normalizada
+                and "auditor" in respuesta_normalizada
+                and "no calific" not in respuesta_normalizada
+            )
+            if "calendar.app.google" in respuesta_normalizada or calificacion_explicita:
+                es_nuevo = await registrar_lead(msg.telefono)
+                if es_nuevo:
+                    info = await extraer_info_lead(await obtener_historial(msg.telefono, limite=30))
+                    await actualizar_info_lead(
+                        msg.telefono,
+                        nombre=info.get("nombre", "No indicó"),
+                        rubro=info.get("rubro", "No indicó"),
+                        presupuesto=info.get("presupuesto", "No indicó"),
+                        interes=info.get("interes", "No indicó"),
+                        sentiment_score=info.get("sentiment_score", 50),
+                        sentiment_label=info.get("sentiment_label", "neutral"),
+                        resumen=info.get("resumen", "No disponible"),
+                    )
+                    await notificar_lead_calificado(msg.telefono, info)
         return {"status": "ok"}
     except Exception as e:
         logger.error(f"Error en webhook Instagram: {e}")
