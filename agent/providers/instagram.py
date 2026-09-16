@@ -10,6 +10,8 @@ class ProveedorInstagram(ProveedorWhatsApp):
         self.access_token = access_token or os.getenv("INSTAGRAM_ACCESS_TOKEN")
         self.verify_token = verify_token or os.getenv("INSTAGRAM_VERIFY_TOKEN", "mcgrowth-instagram-2026")
         self.api_version = os.getenv("META_API_VERSION", "v21.0")
+        self.login_mode = os.getenv("INSTAGRAM_LOGIN_MODE", "instagram").lower()
+        self.ig_user_id = os.getenv("INSTAGRAM_IG_USER_ID")
 
     async def validar_webhook(self, request: Request):
         params = request.query_params
@@ -38,7 +40,12 @@ class ProveedorInstagram(ProveedorWhatsApp):
         if not self.access_token:
             return False
         recipient = telefono.removeprefix("ig:")
-        url = f"https://graph.instagram.com/{self.api_version}/me/messages"
+        if self.login_mode == "facebook":
+            if not self.ig_user_id:
+                return False
+            url = f"https://graph.facebook.com/{self.api_version}/{self.ig_user_id}/messages"
+        else:
+            url = f"https://graph.instagram.com/{self.api_version}/me/messages"
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 response = await client.post(url, params={"access_token": self.access_token}, json={"recipient": {"id": recipient}, "message": {"text": mensaje}})
