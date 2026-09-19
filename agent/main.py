@@ -18,7 +18,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends, status, Form
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse, StreamingResponse, FileResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
@@ -96,6 +96,12 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+
+@app.get("/branding/mc-logo.png")
+async def mc_logo():
+    """Logo oficial de MC Marketing, extraído de la propuesta de marca."""
+    return FileResponse("assets/mc-marketing-logo.png", media_type="image/png", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/")
@@ -622,7 +628,7 @@ document.querySelector('.tabs').insertAdjacentHTML('beforeend','<button class="t
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     response.body = response.body.replace(
         b'<div class="mark">MC</div>',
-        b'<div class="mark" aria-label="MC Marketing"><svg width="24" height="24" viewBox="0 0 128 128" aria-hidden="true"><g transform="translate(8 7) rotate(42 56 56)" fill="currentColor"><path d="M56 4C79 17 92 40 92 67v18l-17-6-19 22-19-22-17 6V67C20 40 33 17 56 4Z"/><circle cx="56" cy="41" r="9" fill="#F47B20"/><path d="M36 76 18 101l26-10M76 76l18 25-26-10M45 96l11 25 11-25-11 8-11-8Z"/></g></svg></div>',
+        b'<div class="mark" aria-label="MC Marketing"><img src="/branding/mc-logo.png" alt="MC Marketing" style="width:24px;height:24px;display:block;object-fit:contain"></div>',
         1,
     )
     response.headers["Content-Length"] = str(len(response.body))
