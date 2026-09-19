@@ -22,7 +22,7 @@ from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse,
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import DATABASE_URL, inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal, obtener_control_contacto, establecer_control_contacto
+from agent.memory import DATABASE_URL, inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, actualizar_seguimiento_lead, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal, obtener_control_contacto, establecer_control_contacto
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado
 
@@ -331,11 +331,11 @@ async def exportar_leads_csv(_usuario: str = Depends(autenticar_dashboard)):
         filas.append([
             lead["telefono"], lead["nombre"], lead["rubro"], lead["presupuesto"],
             lead["interes"], lead["sentiment_score"], lead["sentiment_label"],
-            lead["resumen"], estado, lead["timestamp"],
+            lead["resumen"], lead["nota"], lead["proxima_accion"], estado, lead["timestamp"],
         ])
     return _csv_response(
         "mc-growth-leads.csv",
-        ["telefono", "nombre", "rubro", "presupuesto", "interes", "sentiment_score", "sentiment_label", "resumen", "estado", "fecha"],
+        ["telefono", "nombre", "rubro", "presupuesto", "interes", "sentiment_score", "sentiment_label", "resumen", "nota_interna", "proxima_accion", "estado", "fecha"],
         filas,
     )
 
@@ -376,6 +376,20 @@ async def cambiar_estado(telefono: str, request: Request, _usuario: str = Depend
     if not await cambiar_estado_lead(telefono, estado):
         raise HTTPException(status_code=400, detail="Estado o lead inválido")
     return {"status": "ok", "estado": estado}
+
+
+@app.post("/leads/{telefono}/seguimiento")
+async def guardar_seguimiento(telefono: str, request: Request, _usuario: str = Depends(autenticar_dashboard)):
+    """Guarda la nota interna y la próxima acción comercial del lead."""
+    datos = await request.json()
+    ok = await actualizar_seguimiento_lead(
+        telefono,
+        nota=str(datos.get("nota", "")),
+        proxima_accion=str(datos.get("proxima_accion", "")),
+    )
+    if not ok:
+        raise HTTPException(status_code=404, detail="Lead no encontrado")
+    return {"status": "ok"}
 
 
 @app.get("/contacts/{telefono}/control")
@@ -634,7 +648,9 @@ prepararEmbeddedSignup();
 document.addEventListener('click',function(e){if(e.target.closest('.embedded-signup'))abrirEmbeddedSignup()});
 document.addEventListener('click',function(e){var b=e.target.closest('.open-inbox-chat');if(b){var l=leads.find(function(x){return x.telefono===b.dataset.tel});openChat(encodeURIComponent(b.dataset.tel),l?(l.nombre||b.dataset.tel):b.dataset.tel)}});
 function renderInsights(){var box=document.getElementById('insights');if(!box){document.querySelector('#pipeline .stats').insertAdjacentHTML('afterend','<section id="insights" aria-label="Resumen visual" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:0 0 22px"></section>');box=document.getElementById('insights')}var total=leads.length,avg=total?Math.round(leads.reduce(function(a,l){return a+(Number(l.sentiment_score)||50)},0)/total):0,pos=leads.filter(function(l){return l.sentiment_label==='positivo'}).length,neu=leads.filter(function(l){return l.sentiment_label==='neutral'}).length,neg=leads.filter(function(l){return l.sentiment_label==='negativo'}).length,max=Math.max(pos,neu,neg,1);box.innerHTML='<div style="background:rgba(17,17,19,.88);border:1px solid #27272a;border-radius:14px;padding:16px"><div style="color:#a1a1aa;font-size:11px;text-transform:uppercase;letter-spacing:1px">Sentimiento promedio</div><strong style="display:block;font-size:28px;color:'+(avg>=70?'#86efac':avg>=45?'#fbbf24':'#fca5a5')+'">'+avg+'/100</strong><span style="color:#a1a1aa;font-size:12px">Lectura general de los leads</span></div><div style="background:rgba(17,17,19,.88);border:1px solid #27272a;border-radius:14px;padding:16px"><div style="color:#a1a1aa;font-size:11px;text-transform:uppercase;letter-spacing:1px">Distribución emocional</div><div style="display:flex;align-items:end;gap:8px;height:38px;margin:8px 0"><div title="Positivo: '+pos+'" style="height:'+Math.max(6,Math.round(pos/max*100))+'%;flex:1;background:#22c55e;border-radius:5px 5px 2px 2px"></div><div title="Neutral: '+neu+'" style="height:'+Math.max(6,Math.round(neu/max*100))+'%;flex:1;background:#f59e0b;border-radius:5px 5px 2px 2px"></div><div title="Negativo: '+neg+'" style="height:'+Math.max(6,Math.round(neg/max*100))+'%;flex:1;background:#ef4444;border-radius:5px 5px 2px 2px"></div></div><span style="color:#a1a1aa;font-size:12px">Positivo '+pos+' · Neutral '+neu+' · Negativo '+neg+'</span></div><div style="background:rgba(17,17,19,.88);border:1px solid #27272a;border-radius:14px;padding:16px"><div style="color:#a1a1aa;font-size:11px;text-transform:uppercase;letter-spacing:1px">Oportunidades visibles</div><strong style="display:block;font-size:28px;color:#f47b20">'+total+'</strong><span style="color:#a1a1aa;font-size:12px">Leads calificados en el pipeline</span></div>'}
-var loadWithInsights=load;load=async function(){await loadWithInsights();renderInsights()};
+function decorateFollowupCards(){document.querySelectorAll('.card[data-tel]').forEach(function(c){var l=leads.find(function(x){return x.telefono===c.dataset.tel});if(!l)return;var data=c.querySelector('.data'),actions=c.querySelector('.actions');if(data&&!data.querySelector('.followup-data'))data.insertAdjacentHTML('beforeend','<div class="muted followup-data" style="margin-top:8px"><strong>Nota:</strong> '+esc(l.nota||'Sin nota')+'<br><strong>Próxima:</strong> '+esc(l.proxima_accion||'Sin definir')+'</div>');if(actions&&!actions.querySelector('.edit-followup'))actions.insertAdjacentHTML('afterbegin','<button class="edit-followup" data-tel="'+esc(l.telefono)+'">Seguimiento</button>')})}
+var loadWithInsights=load;load=async function(){await loadWithInsights();renderInsights();decorateFollowupCards()};
+document.addEventListener('click',async function(e){var b=e.target.closest('.edit-followup');if(!b)return;var l=leads.find(function(x){return x.telefono===b.dataset.tel});if(!l)return;var nota=prompt('Nota interna del seguimiento:',l.nota||'');if(nota===null)return;var proxima=prompt('Próxima acción:',l.proxima_accion||'');if(proxima===null)return;var r=await fetch('/leads/'+encodeURIComponent(b.dataset.tel)+'/seguimiento',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nota:nota,proxima_accion:proxima})});if(r.ok)load();else alert('No se pudo guardar el seguimiento')});
 async function seedDemo(){var r=await fetch('/api/demo/seed',{method:'POST'});var d=await r.json();alert(d.mensaje+' ('+d.creados+' nuevos)');load()}
 async function loadInbox(){var d=await (await fetch('/conversaciones')).json(),leadsMap={};leads.forEach(function(l){leadsMap[l.telefono]=l});var box=document.getElementById('inbox-list');if(!box)return;box.innerHTML=(d.conversaciones||[]).map(function(c){var l=leadsMap[c.telefono],nombre=l?(l.nombre||'Sin nombre'):'Contacto nuevo',estado=l?(stage(l)==='seguimiento'?'Calificado · seguimiento':stage(l)==='cerrado'?'Cerrado':'Descartado'):'En conversación';return '<article class="card"><div class="cardtop"><div><div class="name">'+esc(nombre)+'</div><div class="phone">+'+esc(c.telefono.replace('@s.whatsapp.net','').replace('@c.us',''))+'</div></div><span class="pill">'+estado+'</span></div><div class="data"><div><strong>Mensajes:</strong> '+c.mensajes+'</div><div class="muted">Último contacto: '+new Date(c.ultimo_mensaje).toLocaleString('es-AR')+'</div></div><div class="actions"><button class="open-inbox-chat" data-tel="'+esc(c.telefono)+'">Ver conversación</button></div></article>'}).join('')||'<div class="empty">Todavía no hay conversaciones.</div>'}
 document.querySelector('.top').insertAdjacentHTML('beforeend','<button class="connect" style="width:auto;margin-right:8px">Cargar datos demo</button><a class="connect" style="display:inline-block;text-decoration:none;margin-right:8px" href="/export/leads.csv">Exportar leads</a><a class="connect" style="display:inline-block;text-decoration:none;margin-right:20px" href="/export/conversaciones.csv">Exportar chats</a>');document.querySelector('.top .connect').onclick=seedDemo;

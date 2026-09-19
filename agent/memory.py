@@ -64,6 +64,8 @@ class Lead(Base):
     sentiment_score: Mapped[int] = mapped_column(Integer, default=50)
     sentiment_label: Mapped[str] = mapped_column(String(30), default="neutral")
     resumen: Mapped[str] = mapped_column(Text, default="No disponible")
+    nota: Mapped[str] = mapped_column(Text, default="")
+    proxima_accion: Mapped[str] = mapped_column(String(300), default="")
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -104,6 +106,8 @@ async def inicializar_db():
                 "sentiment_score": "INTEGER DEFAULT 50",
                 "sentiment_label": "VARCHAR(30) DEFAULT 'neutral'",
                 "resumen": "TEXT DEFAULT 'No disponible'",
+                "nota": "TEXT DEFAULT ''",
+                "proxima_accion": "VARCHAR(300) DEFAULT ''",
             }
             for nombre, tipo in nuevas.items():
                 if nombre not in existentes:
@@ -122,6 +126,8 @@ async def inicializar_db():
             # cuando publicamos una nueva versión del núcleo.
             await conn.execute(text("ALTER TABLE mensajes ADD COLUMN IF NOT EXISTS fuente VARCHAR(20) DEFAULT 'bot'"))
             await conn.execute(text("ALTER TABLE canales ADD COLUMN IF NOT EXISTS coexistencia BOOLEAN DEFAULT FALSE"))
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS nota TEXT DEFAULT ''"))
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS proxima_accion VARCHAR(300) DEFAULT ''"))
 
     # Se consulta después de cerrar la transacción anterior. En PostgreSQL,
     # otro connection no puede ver la tabla hasta que create_all fue confirmado.
@@ -307,6 +313,19 @@ async def cambiar_estado_lead(telefono: str, estado: str) -> bool:
         return True
 
 
+async def actualizar_seguimiento_lead(telefono: str, nota: str = "", proxima_accion: str = "") -> bool:
+    """Guarda información interna del seguimiento comercial del lead."""
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+        lead.nota = (nota or "").strip()[:2000]
+        lead.proxima_accion = (proxima_accion or "").strip()[:300]
+        await session.commit()
+        return True
+
+
 async def eliminar_lead(telefono: str) -> bool:
     """Elimina explícitamente un lead y su conversación asociada."""
     async with async_session() as session:
@@ -345,6 +364,8 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "sentiment_score": l.sentiment_score or 50,
                 "sentiment_label": l.sentiment_label or "neutral",
                 "resumen": l.resumen or "No disponible",
+                "nota": l.nota or "",
+                "proxima_accion": l.proxima_accion or "",
                 "timestamp": l.timestamp.isoformat(),
             }
             for l in leads
