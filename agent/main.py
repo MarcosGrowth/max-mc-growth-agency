@@ -111,7 +111,9 @@ async def health_check():
         "status": "ok",
         "agente": "Max",
         "negocio": "MC Growth Agency",
-        "proveedor": proveedor.__class__.__name__
+        "proveedor": proveedor.__class__.__name__,
+        "persistencia": "PostgreSQL" if DATABASE_URL.startswith("postgres") else "SQLite",
+        "entorno": ENVIRONMENT,
     }
 
 
