@@ -627,6 +627,11 @@ document.querySelector('.tabs').insertAdjacentHTML('beforeend','<button class="t
 </script></body></html>""")
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     response.body = response.body.replace(
+        '<header class="top"><div class="brand"><div class="mark">MC</div><div>MC Growth <small>Growth OS · Lead intelligence</small></div></div><div class="live">● Max operativo</div></header>'.encode("utf-8"),
+        '<header class="top" style="height:72px;padding:0 32px"><div class="brand" style="gap:0"><img src="/branding/mc-logo.png" alt="MC Marketing" style="width:154px;height:auto;display:block;filter:drop-shadow(0 0 12px rgba(244,123,32,.28))"></div><div class="live">● Max operativo</div></header>'.encode("utf-8"),
+        1,
+    )
+    response.body = response.body.replace(
         b'<div class="mark">MC</div>',
         b'<div class="mark" aria-label="MC Marketing"><img src="/branding/mc-logo.png" alt="MC Marketing" style="width:24px;height:24px;display:block;object-fit:contain"></div>',
         1,
