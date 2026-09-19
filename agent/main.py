@@ -625,4 +625,5 @@ document.querySelector('.tabs').insertAdjacentHTML('beforeend','<button class="t
         b'<div class="mark" aria-label="MC Marketing"><svg width="24" height="24" viewBox="0 0 128 128" aria-hidden="true"><g transform="translate(8 7) rotate(42 56 56)" fill="currentColor"><path d="M56 4C79 17 92 40 92 67v18l-17-6-19 22-19-22-17 6V67C20 40 33 17 56 4Z"/><circle cx="56" cy="41" r="9" fill="#F47B20"/><path d="M36 76 18 101l26-10M76 76l18 25-26-10M45 96l11 25 11-25-11 8-11-8Z"/></g></svg></div>',
         1,
     )
+    response.headers["Content-Length"] = str(len(response.body))
     return response
