@@ -43,6 +43,7 @@ class Mensaje(Base):
     telefono: Mapped[str] = mapped_column(String(50), index=True)
     role: Mapped[str] = mapped_column(String(20))       # "user" o "assistant"
     content: Mapped[str] = mapped_column(Text)
+    fuente: Mapped[str] = mapped_column(String(20), default="bot")  # bot, human o user
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -77,7 +78,19 @@ class Canal(Base):
     access_token: Mapped[str] = mapped_column(Text)
     verify_token: Mapped[str] = mapped_column(String(200), default="mcgrowth-webhook-2026")
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    coexistencia: Mapped[bool] = mapped_column(Boolean, default=False)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ControlContacto(Base):
+    """Controla si Max puede responder o si el equipo tomó la conversación."""
+    __tablename__ = "control_contactos"
+
+    telefono: Mapped[str] = mapped_column(String(50), primary_key=True)
+    bot_activo: Mapped[bool] = mapped_column(Boolean, default=True)
+    responsable: Mapped[str] = mapped_column(String(100), default="Max")
+    motivo: Mapped[str] = mapped_column(String(200), default="")
+    actualizado: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 async def inicializar_db():
@@ -95,6 +108,20 @@ async def inicializar_db():
             for nombre, tipo in nuevas.items():
                 if nombre not in existentes:
                     await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {nombre} {tipo}"))
+            columnas_mensajes = await conn.execute(text("PRAGMA table_info(mensajes)"))
+            existentes_mensajes = {fila[1] for fila in columnas_mensajes.fetchall()}
+            if "fuente" not in existentes_mensajes:
+                await conn.execute(text("ALTER TABLE mensajes ADD COLUMN fuente VARCHAR(20) DEFAULT 'bot'"))
+            columnas_canales = await conn.execute(text("PRAGMA table_info(canales)"))
+            existentes_canales = {fila[1] for fila in columnas_canales.fetchall()}
+            if "coexistencia" not in existentes_canales:
+                await conn.execute(text("ALTER TABLE canales ADD COLUMN coexistencia BOOLEAN DEFAULT 0"))
+        else:
+            # create_all no modifica tablas ya existentes. Estas migraciones
+            # pequeñas mantienen compatible la base de datos de clientes
+            # cuando publicamos una nueva versión del núcleo.
+            await conn.execute(text("ALTER TABLE mensajes ADD COLUMN IF NOT EXISTS fuente VARCHAR(20) DEFAULT 'bot'"))
+            await conn.execute(text("ALTER TABLE canales ADD COLUMN IF NOT EXISTS coexistencia BOOLEAN DEFAULT FALSE"))
 
     # Se consulta después de cerrar la transacción anterior. En PostgreSQL,
     # otro connection no puede ver la tabla hasta que create_all fue confirmado.
@@ -103,7 +130,7 @@ async def inicializar_db():
             token = os.getenv("META_ACCESS_TOKEN")
             phone_id = os.getenv("META_PHONE_NUMBER_ID")
             if token and phone_id:
-                session.add(Canal(nombre="WhatsApp principal", tipo="whatsapp", phone_number_id=phone_id, access_token=token, verify_token=os.getenv("META_VERIFY_TOKEN", "mcgrowth-webhook-2026")))
+                session.add(Canal(nombre="WhatsApp principal", tipo="whatsapp", phone_number_id=phone_id, access_token=token, verify_token=os.getenv("META_VERIFY_TOKEN", "mcgrowth-webhook-2026"), coexistencia=os.getenv("META_COEXISTENCE", "false").lower() == "true"))
                 await session.commit()
 
 
@@ -118,7 +145,7 @@ async def obtener_canal(phone_number_id: str | None):
 async def obtener_canales() -> list[dict]:
     async with async_session() as session:
         result = await session.execute(select(Canal).order_by(Canal.timestamp.asc()))
-        return [{"id": c.id, "nombre": c.nombre, "tipo": c.tipo, "phone_number_id": c.phone_number_id, "activo": c.activo, "configurado": bool(c.access_token)} for c in result.scalars().all()]
+        return [{"id": c.id, "nombre": c.nombre, "tipo": c.tipo, "phone_number_id": c.phone_number_id, "activo": c.activo, "coexistencia": c.coexistencia, "configurado": bool(c.access_token)} for c in result.scalars().all()]
 
 
 async def guardar_canal(nombre: str, tipo: str, phone_number_id: str, access_token: str, verify_token: str) -> dict:
@@ -145,7 +172,7 @@ async def alternar_canal(canal_id: int) -> bool:
         return canal.activo
 
 
-async def guardar_mensaje(telefono: str, role: str, content: str):
+async def guardar_mensaje(telefono: str, role: str, content: str, fuente: str = "bot"):
     """
     Guarda un mensaje en el historial de conversación.
 
@@ -159,6 +186,7 @@ async def guardar_mensaje(telefono: str, role: str, content: str):
             telefono=telefono,
             role=role,
             content=content,
+            fuente=fuente,
             timestamp=datetime.utcnow()
         )
         session.add(mensaje)
@@ -330,6 +358,7 @@ async def obtener_conversacion(telefono: str) -> list[dict]:
         result = await session.execute(query)
         return [
             {"role": mensaje.role, "content": mensaje.content,
+             "fuente": mensaje.fuente or "bot",
              "timestamp": mensaje.timestamp.isoformat()}
             for mensaje in result.scalars().all()
         ]
@@ -348,6 +377,30 @@ async def obtener_conversaciones() -> list[dict]:
             {"telefono": telefono, "ultimo_mensaje": ultimo.isoformat(), "mensajes": cantidad}
             for telefono, ultimo, cantidad in result.all()
         ]
+
+
+async def obtener_control_contacto(telefono: str) -> dict:
+    async with async_session() as session:
+        result = await session.execute(select(ControlContacto).where(ControlContacto.telefono == telefono))
+        control = result.scalar_one_or_none()
+        if not control:
+            return {"telefono": telefono, "bot_activo": True, "responsable": "Max", "motivo": ""}
+        return {"telefono": control.telefono, "bot_activo": control.bot_activo, "responsable": control.responsable, "motivo": control.motivo, "actualizado": control.actualizado.isoformat()}
+
+
+async def establecer_control_contacto(telefono: str, bot_activo: bool, responsable: str = "Equipo comercial", motivo: str = "Toma manual") -> dict:
+    async with async_session() as session:
+        result = await session.execute(select(ControlContacto).where(ControlContacto.telefono == telefono))
+        control = result.scalar_one_or_none()
+        if not control:
+            control = ControlContacto(telefono=telefono)
+            session.add(control)
+        control.bot_activo = bot_activo
+        control.responsable = "Max" if bot_activo else responsable
+        control.motivo = "" if bot_activo else motivo
+        control.actualizado = datetime.utcnow()
+        await session.commit()
+        return {"telefono": telefono, "bot_activo": control.bot_activo, "responsable": control.responsable, "motivo": control.motivo, "actualizado": control.actualizado.isoformat()}
 
 
 async def obtener_todos_los_mensajes() -> list[dict]:

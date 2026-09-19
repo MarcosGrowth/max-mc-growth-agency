@@ -47,6 +47,7 @@ class ProveedorMeta(ProveedorWhatsApp):
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,
                             canal_id=canal_id,
+                            origen="user",
                         ))
                     elif msg.get("type") == "audio":
                         # Audio recibido — por ahora lo ignoramos con mensaje amigable
@@ -56,6 +57,24 @@ class ProveedorMeta(ProveedorWhatsApp):
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,
                             canal_id=canal_id,
+                            origen="user",
+                        ))
+
+                # En Coexistence Meta puede enviar ecos de mensajes escritos
+                # desde la app WhatsApp Business. Se distinguen de los
+                # mensajes enviados por Cloud API y se usan para activar la
+                # toma humana automáticamente en el CRM.
+                for echo in value.get("message_echoes", []) + value.get("messages_echoes", []):
+                    texto = echo.get("text", {}).get("body", "")
+                    destinatario = echo.get("to", "") or echo.get("recipient_id", "")
+                    if texto and destinatario:
+                        mensajes.append(MensajeEntrante(
+                            telefono=destinatario,
+                            texto=texto,
+                            mensaje_id=echo.get("id", ""),
+                            es_propio=True,
+                            canal_id=canal_id,
+                            origen="human",
                         ))
         return mensajes
 

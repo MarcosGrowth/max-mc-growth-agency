@@ -22,7 +22,7 @@ from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse,
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal
+from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal, obtener_control_contacto, establecer_control_contacto
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado
 
@@ -147,8 +147,22 @@ async def webhook_handler(request: Request):
         mensajes = await proveedor.parsear_webhook(request)
 
         for msg in mensajes:
-            # Ignorar mensajes propios del agente o vacíos
-            if msg.es_propio or not msg.texto:
+            # Los ecos humanos de Coexistence se guardan y pausan Max.
+            # Así el comercial puede responder desde WhatsApp Business sin
+            # que el bot interrumpa o envíe una segunda respuesta.
+            if msg.es_propio:
+                if msg.origen == "human" and msg.texto:
+                    await guardar_mensaje(msg.telefono, "assistant", msg.texto, fuente="human")
+                    await establecer_control_contacto(msg.telefono, False, "Equipo comercial", "Mensaje enviado desde WhatsApp Business")
+                    logger.info(f"Toma humana detectada para {msg.telefono}; Max pausado")
+                continue
+            if not msg.texto:
+                continue
+
+            control = await obtener_control_contacto(msg.telefono)
+            if not control["bot_activo"]:
+                await guardar_mensaje(msg.telefono, "user", msg.texto, fuente="user")
+                logger.info(f"Mensaje guardado sin respuesta: Max pausado para {msg.telefono}")
                 continue
 
             logger.info(f"Mensaje recibido de {msg.telefono}: {msg.texto[:80]}...")
@@ -167,8 +181,8 @@ async def webhook_handler(request: Request):
             respuesta = await generar_respuesta(msg.texto, historial)
 
             # Guardar mensaje del prospecto y respuesta de Max en memoria
-            await guardar_mensaje(msg.telefono, "user", msg.texto)
-            await guardar_mensaje(msg.telefono, "assistant", respuesta)
+            await guardar_mensaje(msg.telefono, "user", msg.texto, fuente="user")
+            await guardar_mensaje(msg.telefono, "assistant", respuesta, fuente="bot")
 
             # Enviar respuesta por WhatsApp via el proveedor
             enviado = await proveedor_mensaje.enviar_mensaje(msg.telefono, respuesta)
@@ -356,6 +370,24 @@ async def cambiar_estado(telefono: str, request: Request, _usuario: str = Depend
     return {"status": "ok", "estado": estado}
 
 
+@app.get("/contacts/{telefono}/control")
+async def estado_control_contacto(telefono: str, _usuario: str = Depends(autenticar_dashboard)):
+    """Devuelve quién tiene el control de la conversación."""
+    return await obtener_control_contacto(telefono)
+
+
+@app.post("/contacts/{telefono}/takeover")
+async def tomar_control_contacto(telefono: str, _usuario: str = Depends(autenticar_dashboard)):
+    """Pausa Max para que el equipo continúe desde WhatsApp Business."""
+    return {"status": "ok", **await establecer_control_contacto(telefono, False, "Equipo comercial", "Toma manual desde el dashboard")}
+
+
+@app.post("/contacts/{telefono}/resume")
+async def reactivar_max_contacto(telefono: str, _usuario: str = Depends(autenticar_dashboard)):
+    """Reactiva Max para ese contacto, sin borrar el historial."""
+    return {"status": "ok", **await establecer_control_contacto(telefono, True)}
+
+
 @app.delete("/leads/{telefono}")
 async def eliminar_lead_api(telefono: str, _usuario: str = Depends(autenticar_dashboard)):
     """Elimina un lead y su conversación sólo mediante una acción explícita."""
@@ -372,6 +404,16 @@ async def api_channels(_usuario: str = Depends(autenticar_dashboard)):
         {"id": "facebook", "name": "Facebook Messenger", "status": "not_configured", "available": False},
         {"id": "linkedin", "name": "LinkedIn", "status": "not_configured", "available": False},
     ]}
+
+
+@app.get("/api/meta/embedded-signup/config")
+async def embedded_signup_config(_usuario: str = Depends(autenticar_dashboard)):
+    """Devuelve sólo datos públicos necesarios para abrir el diálogo de Meta."""
+    return {
+        "app_id": os.getenv("META_APP_ID", "1016554401027275"),
+        "config_id": os.getenv("META_EMBEDDED_SIGNUP_CONFIG_ID", "1398042952535570"),
+        "version": "v26.0",
+    }
 
 
 @app.post("/api/channels")
@@ -555,16 +597,19 @@ async def dashboard_v2(request: Request):
 </style></head><body><header class="top"><div class="brand"><div class="mark">MC</div><div>MC Growth <small>Growth OS · Lead intelligence</small></div></div><div class="live">● Max operativo</div></header><main class="wrap"><section class="intro"><h1>Pipeline de oportunidades</h1><p>Convertí conversaciones en decisiones comerciales.</p></section><nav class="tabs"><button class="tab active" data-tab="pipeline">Pipeline</button><button class="tab" data-tab="canales">Canales</button></nav><section id="pipeline" class="panel active"><div class="stats"><div class="stat"><b id="total">0</b><span>Leads calificados</span></div><div class="stat"><b id="seguimiento" style="color:#fbbf24">0</b><span>En seguimiento</span></div><div class="stat"><b id="cerrado" style="color:#86efac">0</b><span>Cerrados</span></div><div class="stat"><b id="descartado">0</b><span>Descartados</span></div><div class="stat"><b id="conversion" style="color:#f47b20">0%</b><span>Conversión</span></div></div><div class="pipeline"><div class="stage" data-stage="seguimiento"><h3>En seguimiento <span id="count-seguimiento">0</span></h3><div id="col-seguimiento"></div></div><div class="stage" data-stage="cerrado"><h3>Cerrados <span id="count-cerrado">0</span></h3><div id="col-cerrado"></div></div><div class="stage" data-stage="descartado"><h3>Descartados <span id="count-descartado">0</span></h3><div id="col-descartado"></div></div></div><div class="note">Arrastrá una tarjeta entre columnas. Abrí un lead para ver la conversación completa que tuvo con Max.</div></section><section id="canales" class="panel"><div class="channels" id="channels"></div><div class="note"><strong>Canales:</strong> WhatsApp está conectado a Meta Cloud API. Instagram y Facebook requieren sus Webhooks de Meta; LinkedIn requiere permisos específicos.</div></section></main><div class="overlay" id="overlay"><div class="modal"><div class="modalhead"><div><h2 id="modal-title" style="margin:0 0 4px">Conversación</h2><span id="modal-sub" class="muted"></span></div><button class="close" onclick="closeModal()">×</button></div><div class="chat" id="chat"></div></div></div><script>
 const esc=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 let leads=[]; function stage(l){return l.cerrado?'cerrado':l.descartado?'descartado':'seguimiento'}
-function card(l){var s=stage(l),score=l.sentiment_score||50;return '<article class="card" draggable="true" data-tel="'+esc(l.telefono)+'"><div class="cardtop"><div><div class="name">'+esc(l.nombre||'Sin nombre')+'</div><div class="phone">+'+esc(l.telefono.replace('@s.whatsapp.net','').replace('@c.us',''))+'</div></div><span class="pill '+esc(l.sentiment_label||'neutral')+'">'+score+'/100</span></div><div class="data"><div><strong>Rubro:</strong> '+esc(l.rubro)+'</div><div><strong>Presupuesto:</strong> '+esc(l.presupuesto)+'</div><div><strong>Interés:</strong> '+esc(l.interes)+'</div><div class="muted">'+esc(l.resumen)+'</div></div><div class="actions"><button class="open-chat" data-tel="'+esc(l.telefono)+'">Ver chat</button>'+(s==='seguimiento'?'<button class="win close-lead" data-tel="'+esc(l.telefono)+'">Cerrar</button><button class="discard-lead" data-tel="'+esc(l.telefono)+'">Descartar</button>':'')+'<button class="delete-lead" data-tel="'+esc(l.telefono)+'">Eliminar</button></div></article>'}
+function card(l){var s=stage(l),score=l.sentiment_score||50;return '<article class="card" draggable="true" data-tel="'+esc(l.telefono)+'"><div class="cardtop"><div><div class="name">'+esc(l.nombre||'Sin nombre')+'</div><div class="phone">+'+esc(l.telefono.replace('@s.whatsapp.net','').replace('@c.us',''))+'</div></div><span class="pill '+esc(l.sentiment_label||'neutral')+'">'+score+'/100</span></div><div class="data"><div><strong>Rubro:</strong> '+esc(l.rubro)+'</div><div><strong>Presupuesto:</strong> '+esc(l.presupuesto)+'</div><div><strong>Interés:</strong> '+esc(l.interes)+'</div><div class="muted">'+esc(l.resumen)+'</div></div><div class="actions"><button class="open-chat" data-tel="'+esc(l.telefono)+'">Ver chat</button><button class="takeover" data-tel="'+esc(l.telefono)+'">Pausar Max</button><button class="resume-max" data-tel="'+esc(l.telefono)+'">Reactivar Max</button>'+(s==='seguimiento'?'<button class="win close-lead" data-tel="'+esc(l.telefono)+'">Cerrar</button><button class="discard-lead" data-tel="'+esc(l.telefono)+'">Descartar</button>':'')+'<button class="delete-lead" data-tel="'+esc(l.telefono)+'">Eliminar</button></div></article>'}
 async function load(){var d=await (await fetch('/leads')).json(); leads=d.leads||[]; ['seguimiento','cerrado','descartado'].forEach(function(s){var a=leads.filter(function(l){return stage(l)===s}),el=document.getElementById('col-'+s);el.innerHTML=a.length?a.map(card).join(''):'<div class="empty">Sin leads</div>';document.getElementById('count-'+s).textContent=a.length});document.getElementById('total').textContent=leads.length;document.getElementById('seguimiento').textContent=leads.filter(function(l){return stage(l)==='seguimiento'}).length;document.getElementById('cerrado').textContent=leads.filter(function(l){return stage(l)==='cerrado'}).length;document.getElementById('descartado').textContent=leads.filter(function(l){return stage(l)==='descartado'}).length;var base=leads.length-leads.filter(function(l){return l.descartado}).length;document.getElementById('conversion').textContent=(base?Math.round(leads.filter(function(l){return l.cerrado}).length/base*100):0)+'%';document.querySelectorAll('.card').forEach(function(c){c.addEventListener('dragstart',function(e){e.dataTransfer.setData('tel',c.dataset.tel)})});document.querySelectorAll('.stage').forEach(function(c){c.ondragover=function(e){e.preventDefault()};c.ondrop=function(e){setStatus(encodeURIComponent(e.dataTransfer.getData('tel')),c.dataset.stage)}})}
 async function setStatus(t,e){var r=await fetch('/leads/'+t+'/estado',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({estado:e})});if(r.ok)load()}
 async function openChat(t,n){var d=await (await fetch('/leads/'+t+'/conversation')).json();document.getElementById('modal-title').textContent=n;document.getElementById('chat').innerHTML=(d.messages||[]).map(function(m){return '<div class="bubble '+m.role+'">'+esc(m.content)+'<span class="time">'+new Date(m.timestamp).toLocaleString('es-AR')+'</span></div>'}).join('')||'<div class="empty">No hay mensajes.</div>';document.getElementById('overlay').style.display='block'}function closeModal(){document.getElementById('overlay').style.display='none'}
-async function loadChannels(){var d=await (await fetch('/api/channels')).json(),html=(d.channels||[]).map(function(c){var on=c.activo&&d.bot_enabled;return '<div class="channel"><div class="icon">W</div><h3>'+esc(c.nombre)+'</h3><div class="status '+(on?'':'off')+'">● '+(on?'Conectado':'Pausado')+'</div><p>WhatsApp Cloud API · '+esc(c.phone_number_id)+'</p><button class="connect channel-action '+(on?'':'off')+'" data-channel-id="'+c.id+'">'+(on?'Desconectar':'Conectar')+'</button></div>'}).join('');html+='<div class="channel"><div class="icon">＋</div><h3>Agregar WhatsApp</h3><div class="status off">● Nuevo número</div><p>Conectá otro Phone Number ID de Meta.</p><button class="connect channel-add">Agregar número</button></div>';html+=(d.other_channels||[]).map(function(c){return '<div class="channel"><div class="icon">'+c.name[0]+'</div><h3>'+c.name+'</h3><div class="status off">● Próximamente</div><p>Requiere credenciales y Webhook.</p><button class="connect off" disabled>Próximamente</button></div>'}).join('');document.getElementById('channels').innerHTML=html}
+async function loadChannels(){var d=await (await fetch('/api/channels')).json(),html=(d.channels||[]).map(function(c){var on=c.activo&&d.bot_enabled;return '<div class="channel"><div class="icon">W</div><h3>'+esc(c.nombre)+'</h3><div class="status '+(on?'':'off')+'">● '+(on?'Conectado':'Pausado')+'</div><p>WhatsApp Cloud API · '+esc(c.phone_number_id)+'</p><button class="connect channel-action '+(on?'':'off')+'" data-channel-id="'+c.id+'">'+(on?'Desconectar':'Conectar')+'</button></div>'}).join('');html+='<div class="channel"><div class="icon">＋</div><h3>Agregar WhatsApp</h3><div class="status off">● Nuevo número</div><p>Conectá otro Phone Number ID de Meta.</p><button class="connect channel-add">Agregar número</button></div><div class="channel"><div class="icon">↔</div><h3>WhatsApp Coexistence</h3><div class="status off">● Vincular app existente</div><p>Conservá el WhatsApp Business del equipo y probá la conexión oficial de Meta.</p><button class="connect embedded-signup">Conectar con Meta</button></div>';html+=(d.other_channels||[]).map(function(c){return '<div class="channel"><div class="icon">'+c.name[0]+'</div><h3>'+c.name+'</h3><div class="status off">● Próximamente</div><p>Requiere credenciales y Webhook.</p><button class="connect off" disabled>Próximamente</button></div>'}).join('');document.getElementById('channels').innerHTML=html}
 async function channelAction(id){await fetch('/api/channels/'+id+'/toggle',{method:'POST'});loadChannels()}
 async function addChannel(){var nombre=prompt('Nombre para diferenciar este número:');if(!nombre)return;var phone=prompt('Phone Number ID de Meta:');if(!phone)return;var token=prompt('Token permanente de Meta (no lo compartas):');if(!token)return;var r=await fetch('/api/channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nombre:nombre,tipo:'whatsapp',phone_number_id:phone,access_token:token})});if(!r.ok){alert('No se pudo guardar el canal');return}alert('Número agregado correctamente');loadChannels()}
 document.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;var t=b.dataset.tel;if(b.classList.contains('open-chat')){var l=leads.find(function(x){return x.telefono===t});openChat(encodeURIComponent(t),l?(l.nombre||t):t)}if(b.classList.contains('close-lead'))setStatus(encodeURIComponent(t),'cerrado');if(b.classList.contains('discard-lead'))setStatus(encodeURIComponent(t),'descartado')});
+document.addEventListener('click',async function(e){var b=e.target.closest('.takeover,.resume-max');if(!b)return;var t=encodeURIComponent(b.dataset.tel),path=b.classList.contains('takeover')?'takeover':'resume';var r=await fetch('/contacts/'+t+'/'+path,{method:'POST'});if(r.ok){alert(path==='takeover'?'Max pausado. El comercial puede continuar desde WhatsApp Business.':'Max reactivado para este contacto.');load()}else alert('No se pudo actualizar el control de la conversación')});
 document.addEventListener('click',async function(e){var b=e.target.closest('.delete-lead');if(!b)return;if(!confirm('Eliminar definitivamente este lead y toda su conversación? Esta acción no se puede deshacer.'))return;var r=await fetch('/leads/'+encodeURIComponent(b.dataset.tel),{method:'DELETE'});if(r.ok)load();else alert('No se pudo eliminar el lead')});
 document.addEventListener('click',function(e){if(e.target.closest('.channel-add'))addChannel();var b=e.target.closest('.channel-action');if(b)channelAction(b.dataset.channelId)});
+async function abrirEmbeddedSignup(){var cfg=await (await fetch('/api/meta/embedded-signup/config')).json();if(!window.FB){await new Promise(function(resolve,reject){var s=document.createElement('script');s.src='https://connect.facebook.net/en_US/sdk.js';s.onload=resolve;s.onerror=reject;document.head.appendChild(s)});FB.init({appId:cfg.app_id,cookie:true,xfbml:false,version:cfg.version})}FB.login(function(response){if(response.authResponse&&response.authResponse.code){alert('Meta autorizó el flujo. Estamos listos para completar el intercambio seguro en el servidor.')}else if(response.authResponse){alert('Meta respondió, pero no devolvió código de autorización. Revisemos el flujo.')}else{alert('La vinculación fue cancelada o Meta no la habilitó para esta cuenta.')}},{config_id:cfg.config_id,response_type:'code',override_default_response_type:true,extras:{feature:'whatsapp_embedded_signup',sessionInfoVersion:'3'}})}
+document.addEventListener('click',function(e){if(e.target.closest('.embedded-signup'))abrirEmbeddedSignup()});
 document.addEventListener('click',function(e){var b=e.target.closest('.open-inbox-chat');if(b){var l=leads.find(function(x){return x.telefono===b.dataset.tel});openChat(encodeURIComponent(b.dataset.tel),l?(l.nombre||b.dataset.tel):b.dataset.tel)}});
 async function seedDemo(){var r=await fetch('/api/demo/seed',{method:'POST'});var d=await r.json();alert(d.mensaje+' ('+d.creados+' nuevos)');load()}
 async function loadInbox(){var d=await (await fetch('/conversaciones')).json(),leadsMap={};leads.forEach(function(l){leadsMap[l.telefono]=l});var box=document.getElementById('inbox-list');if(!box)return;box.innerHTML=(d.conversaciones||[]).map(function(c){var l=leadsMap[c.telefono],nombre=l?(l.nombre||'Sin nombre'):'Contacto nuevo',estado=l?(stage(l)==='seguimiento'?'Calificado · seguimiento':stage(l)==='cerrado'?'Cerrado':'Descartado'):'En conversación';return '<article class="card"><div class="cardtop"><div><div class="name">'+esc(nombre)+'</div><div class="phone">+'+esc(c.telefono.replace('@s.whatsapp.net','').replace('@c.us',''))+'</div></div><span class="pill">'+estado+'</span></div><div class="data"><div><strong>Mensajes:</strong> '+c.mensajes+'</div><div class="muted">Último contacto: '+new Date(c.ultimo_mensaje).toLocaleString('es-AR')+'</div></div><div class="actions"><button class="open-inbox-chat" data-tel="'+esc(c.telefono)+'">Ver conversación</button></div></article>'}).join('')||'<div class="empty">Todavía no hay conversaciones.</div>'}

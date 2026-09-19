@@ -19,6 +19,7 @@ class MensajeEntrante:
     mensaje_id: str     # ID único del mensaje
     es_propio: bool     # True si lo envió el agente (se ignora)
     canal_id: str | None = None  # Phone Number ID de Meta, si aplica
+    origen: str = "user"  # user, bot o human (mensaje enviado desde la app)
 
 
 class ProveedorWhatsApp(ABC):
