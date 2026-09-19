@@ -28,6 +28,8 @@ El número humano del cliente puede seguir funcionando en WhatsApp Business App 
 8. Definir `DASHBOARD_USERNAME` y una contraseña única.
 9. Probar salud, login, conversación, lead calificado, Telegram, dashboard y exportaciones.
 
+El endpoint autenticado `/api/system/status` confirma el entorno y si la instancia está usando PostgreSQL o SQLite, sin mostrar credenciales.
+
 ## Variables mínimas de producción
 
 ```env

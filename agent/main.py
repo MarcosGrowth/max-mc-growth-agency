@@ -22,7 +22,7 @@ from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse,
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal, obtener_control_contacto, establecer_control_contacto
+from agent.memory import DATABASE_URL, inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal, obtener_control_contacto, establecer_control_contacto
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado
 
@@ -410,6 +410,17 @@ async def api_channels(_usuario: str = Depends(autenticar_dashboard)):
         {"id": "facebook", "name": "Facebook Messenger", "status": "not_configured", "available": False},
         {"id": "linkedin", "name": "LinkedIn", "status": "not_configured", "available": False},
     ]}
+
+
+@app.get("/api/system/status")
+async def api_system_status(_usuario: str = Depends(autenticar_dashboard)):
+    """Estado operativo sin exponer credenciales ni la URL de conexión."""
+    return {
+        "status": "ok",
+        "persistencia": "PostgreSQL" if DATABASE_URL.startswith("postgres") else "SQLite",
+        "entorno": ENVIRONMENT,
+        "bot": "activo" if BOT_ENABLED else "pausado",
+    }
 
 
 @app.get("/api/meta/embedded-signup/config")
