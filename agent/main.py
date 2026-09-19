@@ -620,4 +620,9 @@ document.querySelector('.top').insertAdjacentHTML('beforeend','<button class="co
 document.querySelector('.tabs').insertAdjacentHTML('beforeend','<button class="tab" data-tab="inbox">Bandeja</button>');document.querySelector('main').insertAdjacentHTML('beforeend','<section id="inbox" class="panel"><div id="inbox-list" class="pipeline" style="grid-template-columns:repeat(3,1fr)"></div><div class="note">Acá aparecen todos los contactos que hablaron con Max, incluso los que todavía no completaron la calificación.</div></section>');document.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){document.querySelectorAll('.tab,.panel').forEach(function(x){x.classList.remove('active')});b.classList.add('active');document.getElementById(b.dataset.tab).classList.add('active');if(b.dataset.tab==='canales')loadChannels();if(b.dataset.tab==='inbox')loadInbox()}});load();setInterval(load,30000);
 </script></body></html>""")
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.body = response.body.replace(
+        b'<div class="mark">MC</div>',
+        b'<div class="mark" aria-label="MC Marketing"><svg width="24" height="24" viewBox="0 0 128 128" aria-hidden="true"><g transform="translate(8 7) rotate(42 56 56)" fill="currentColor"><path d="M56 4C79 17 92 40 92 67v18l-17-6-19 22-19-22-17 6V67C20 40 33 17 56 4Z"/><circle cx="56" cy="41" r="9" fill="#F47B20"/><path d="M36 76 18 101l26-10M76 76l18 25-26-10M45 96l11 25 11-25-11 8-11-8Z"/></g></svg></div>',
+        1,
+    )
     return response
