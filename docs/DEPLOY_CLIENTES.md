@@ -28,6 +28,16 @@ El número humano del cliente puede seguir funcionando en WhatsApp Business App 
 8. Definir `DASHBOARD_USERNAME` y una contraseña única.
 9. Probar salud, login, conversación, lead calificado, Telegram, dashboard y exportaciones.
 
+## Checklist antes de entregar una instancia
+
+- Confirmar que `/api/system/status` informa `PostgreSQL` y `production`.
+- Enviar una conversación de prueba y verificar que queda visible en **Bandeja**.
+- Verificar extracción de nombre, rubro, presupuesto, interés y sentimiento.
+- Confirmar recepción de Telegram y carga del lead en **Pipeline**.
+- Probar **Seguimiento**, **Pausar Max**, **Cerrar**, **Descartar** y exportación CSV.
+- Configurar una rutina de backup del proyecto PostgreSQL antes de comenzar campañas reales.
+- Guardar en un inventario privado los IDs y nombres de cada canal; nunca poner tokens en el repositorio.
+
 El endpoint autenticado `/api/system/status` confirma el entorno y si la instancia está usando PostgreSQL o SQLite, sin mostrar credenciales.
 
 ## Variables mínimas de producción
@@ -73,3 +83,10 @@ El equipo marca cerrado, descartado o mantiene seguimiento
 Las mejoras generales del dashboard se hacen en este repositorio base. Luego se publican por Git y se actualizan las instancias de clientes después de probarlas en MC Growth OS.
 
 Las credenciales, prompts, datos de negocio y bases de datos nunca se comparten entre clientes.
+
+## Alcance actual del producto
+
+El núcleo está listo para operar con WhatsApp Cloud API: calificación, memoria, Telegram, sentimiento,
+pipeline, conversaciones, notas internas, control humano y exportación. Instagram y Facebook quedan como
+integraciones posteriores porque su puesta en producción depende de la verificación, permisos y revisión de
+Meta de cada aplicación. No deben bloquear la entrega inicial de un cliente por WhatsApp.
