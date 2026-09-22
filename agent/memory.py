@@ -7,6 +7,7 @@ por número de teléfono usando SQLite (local) o PostgreSQL (producción en Rail
 """
 
 import os
+import json
 from datetime import datetime
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -96,6 +97,16 @@ class ControlContacto(Base):
     bot_activo: Mapped[bool] = mapped_column(Boolean, default=True)
     responsable: Mapped[str] = mapped_column(String(100), default="Max")
     motivo: Mapped[str] = mapped_column(String(200), default="")
+    actualizado: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Configuracion(Base):
+    """Preferencias editables del workspace, sin depender de prompts o comandos."""
+    __tablename__ = "configuracion"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    clave: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    valor: Mapped[str] = mapped_column(Text, default="{}")
     actualizado: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -352,6 +363,53 @@ async def actualizar_datos_oportunidad(telefono: str, fecha_proxima_accion: str 
             lead.origen = origen.strip()[:100]
         await session.commit()
         return True
+
+
+CONFIG_DEFAULTS = {
+    "pipeline": {
+        "etapas": [
+            {"key": "nuevo", "nombre": "Nuevo", "color": "#60a5fa", "activa": True},
+            {"key": "contactado", "nombre": "Contactado", "color": "#fbbf24", "activa": True},
+            {"key": "propuesta", "nombre": "Propuesta", "color": "#a78bfa", "activa": True},
+            {"key": "negociacion", "nombre": "Negociación", "color": "#fb923c", "activa": True},
+            {"key": "ganado", "nombre": "Ganado", "color": "#4ade80", "activa": True},
+            {"key": "perdido", "nombre": "Perdido", "color": "#a1a1aa", "activa": True},
+        ],
+        "campos": ["rubro", "presupuesto", "interes", "valor_oportunidad", "origen"],
+    },
+    "workspace": {"nombre": "MC Growth OS", "descripcion": "Lead intelligence"},
+}
+
+
+async def obtener_configuracion() -> dict:
+    """Devuelve preferencias del workspace con defaults seguros para clientes nuevos."""
+    async with async_session() as session:
+        result = await session.execute(select(Configuracion))
+        guardadas = {fila.clave: fila.valor for fila in result.scalars().all()}
+    config = json.loads(json.dumps(CONFIG_DEFAULTS))
+    for clave, valor in guardadas.items():
+        try:
+            config[clave] = json.loads(valor)
+        except (TypeError, json.JSONDecodeError):
+            continue
+    return config
+
+
+async def guardar_configuracion(config: dict) -> dict:
+    """Actualiza únicamente las secciones configurables del CRM."""
+    permitidas = {"pipeline", "workspace"}
+    limpia = {k: config[k] for k in permitidas if k in config and isinstance(config[k], dict)}
+    async with async_session() as session:
+        for clave, valor in limpia.items():
+            result = await session.execute(select(Configuracion).where(Configuracion.clave == clave))
+            fila = result.scalar_one_or_none()
+            if fila:
+                fila.valor = json.dumps(valor, ensure_ascii=False)
+                fila.actualizado = datetime.utcnow()
+            else:
+                session.add(Configuracion(clave=clave, valor=json.dumps(valor, ensure_ascii=False)))
+        await session.commit()
+    return await obtener_configuracion()
 
 
 async def eliminar_lead(telefono: str) -> bool:
