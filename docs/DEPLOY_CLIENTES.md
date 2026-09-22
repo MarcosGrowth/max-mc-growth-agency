@@ -34,7 +34,7 @@ El número humano del cliente puede seguir funcionando en WhatsApp Business App 
 - Enviar una conversación de prueba y verificar que queda visible en **Bandeja**.
 - Verificar extracción de nombre, rubro, presupuesto, interés y sentimiento.
 - Confirmar recepción de Telegram y carga del lead en **Pipeline**.
-- Probar **Seguimiento**, **Pausar Max**, **Cerrar**, **Descartar** y exportación CSV.
+- Probar **Seguimiento**, **Datos comerciales**, **Pausar Max**, **Cerrar**, **Descartar** y exportación CSV.
 - Configurar una rutina de backup del proyecto PostgreSQL antes de comenzar campañas reales.
 - Guardar en un inventario privado los IDs y nombres de cada canal; nunca poner tokens en el repositorio.
 

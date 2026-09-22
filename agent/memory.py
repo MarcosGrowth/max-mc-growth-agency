@@ -66,6 +66,10 @@ class Lead(Base):
     resumen: Mapped[str] = mapped_column(Text, default="No disponible")
     nota: Mapped[str] = mapped_column(Text, default="")
     proxima_accion: Mapped[str] = mapped_column(String(300), default="")
+    etapa: Mapped[str] = mapped_column(String(30), default="seguimiento")
+    fecha_proxima_accion: Mapped[str] = mapped_column(String(30), default="")
+    valor_oportunidad: Mapped[str] = mapped_column(String(100), default="")
+    origen: Mapped[str] = mapped_column(String(100), default="WhatsApp")
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -108,6 +112,10 @@ async def inicializar_db():
                 "resumen": "TEXT DEFAULT 'No disponible'",
                 "nota": "TEXT DEFAULT ''",
                 "proxima_accion": "VARCHAR(300) DEFAULT ''",
+                "etapa": "VARCHAR(30) DEFAULT 'seguimiento'",
+                "fecha_proxima_accion": "VARCHAR(30) DEFAULT ''",
+                "valor_oportunidad": "VARCHAR(100) DEFAULT ''",
+                "origen": "VARCHAR(100) DEFAULT 'WhatsApp'",
             }
             for nombre, tipo in nuevas.items():
                 if nombre not in existentes:
@@ -128,6 +136,10 @@ async def inicializar_db():
             await conn.execute(text("ALTER TABLE canales ADD COLUMN IF NOT EXISTS coexistencia BOOLEAN DEFAULT FALSE"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS nota TEXT DEFAULT ''"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS proxima_accion VARCHAR(300) DEFAULT ''"))
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS etapa VARCHAR(30) DEFAULT 'seguimiento'"))
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS fecha_proxima_accion VARCHAR(30) DEFAULT ''"))
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS valor_oportunidad VARCHAR(100) DEFAULT ''"))
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS origen VARCHAR(100) DEFAULT 'WhatsApp'"))
 
     # Se consulta después de cerrar la transacción anterior. En PostgreSQL,
     # otro connection no puede ver la tabla hasta que create_all fue confirmado.
@@ -300,15 +312,16 @@ async def marcar_lead_descartado(telefono: str) -> bool:
 
 async def cambiar_estado_lead(telefono: str, estado: str) -> bool:
     """Cambia el estado del lead desde el pipeline."""
-    if estado not in {"seguimiento", "cerrado", "descartado"}:
+    if estado not in {"nuevo", "contactado", "propuesta", "negociacion", "seguimiento", "cerrado", "ganado", "descartado", "perdido"}:
         return False
     async with async_session() as session:
         result = await session.execute(select(Lead).where(Lead.telefono == telefono))
         lead = result.scalar_one_or_none()
         if not lead:
             return False
-        lead.cerrado = estado == "cerrado"
-        lead.descartado = estado == "descartado"
+        lead.etapa = estado
+        lead.cerrado = estado in {"cerrado", "ganado"}
+        lead.descartado = estado in {"descartado", "perdido"}
         await session.commit()
         return True
 
@@ -322,6 +335,21 @@ async def actualizar_seguimiento_lead(telefono: str, nota: str = "", proxima_acc
             return False
         lead.nota = (nota or "").strip()[:2000]
         lead.proxima_accion = (proxima_accion or "").strip()[:300]
+        await session.commit()
+        return True
+
+
+async def actualizar_datos_oportunidad(telefono: str, fecha_proxima_accion: str = "", valor_oportunidad: str = "", origen: str = "") -> bool:
+    """Guarda datos comerciales adicionales de la oportunidad."""
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+        lead.fecha_proxima_accion = (fecha_proxima_accion or "").strip()[:30]
+        lead.valor_oportunidad = (valor_oportunidad or "").strip()[:100]
+        if origen and origen.strip():
+            lead.origen = origen.strip()[:100]
         await session.commit()
         return True
 
@@ -366,6 +394,10 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "resumen": l.resumen or "No disponible",
                 "nota": l.nota or "",
                 "proxima_accion": l.proxima_accion or "",
+                "etapa": l.etapa or ("cerrado" if l.cerrado else "descartado" if l.descartado else "seguimiento"),
+                "fecha_proxima_accion": l.fecha_proxima_accion or "",
+                "valor_oportunidad": l.valor_oportunidad or "",
+                "origen": l.origen or "WhatsApp",
                 "timestamp": l.timestamp.isoformat(),
             }
             for l in leads
