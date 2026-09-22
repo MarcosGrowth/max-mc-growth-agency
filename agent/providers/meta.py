@@ -39,6 +39,8 @@ class ProveedorMeta(ProveedorWhatsApp):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
                 canal_id = value.get("metadata", {}).get("phone_number_id")
+                contactos = value.get("contacts", [])
+                nombres = {c.get("wa_id", ""): c.get("profile", {}).get("name", "") for c in contactos}
                 for msg in value.get("messages", []):
                     if msg.get("type") == "text":
                         mensajes.append(MensajeEntrante(
@@ -48,6 +50,7 @@ class ProveedorMeta(ProveedorWhatsApp):
                             es_propio=False,
                             canal_id=canal_id,
                             origen="user",
+                            nombre_contacto=nombres.get(msg.get("from", ""), ""),
                         ))
                     elif msg.get("type") == "audio":
                         # Audio recibido — por ahora lo ignoramos con mensaje amigable
@@ -58,6 +61,7 @@ class ProveedorMeta(ProveedorWhatsApp):
                             es_propio=False,
                             canal_id=canal_id,
                             origen="user",
+                            nombre_contacto=nombres.get(msg.get("from", ""), ""),
                         ))
 
                 # En Coexistence Meta puede enviar ecos de mensajes escritos

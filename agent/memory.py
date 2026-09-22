@@ -252,7 +252,7 @@ async def obtener_historial(telefono: str, limite: int = 20) -> list[dict]:
         ]
 
 
-async def registrar_lead(telefono: str) -> bool:
+async def registrar_lead(telefono: str, notificado: bool = False) -> bool:
     """
     Registra un lead calificado. Si ya existe, no hace nada.
 
@@ -268,8 +268,20 @@ async def registrar_lead(telefono: str) -> bool:
         if existente:
             return False  # Ya registrado
 
-        lead = Lead(telefono=telefono, notificado=True, cerrado=False, descartado=False)
+        lead = Lead(telefono=telefono, notificado=notificado, cerrado=False, descartado=False)
         session.add(lead)
+        await session.commit()
+        return True
+
+
+async def marcar_lead_notificado(telefono: str) -> bool:
+    """Marca que el lead ya fue enviado al equipo como calificado."""
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+        lead.notificado = True
         await session.commit()
         return True
 
@@ -346,6 +358,18 @@ async def actualizar_seguimiento_lead(telefono: str, nota: str = "", proxima_acc
             return False
         lead.nota = (nota or "").strip()[:2000]
         lead.proxima_accion = (proxima_accion or "").strip()[:300]
+        await session.commit()
+        return True
+
+
+async def actualizar_nombre_lead(telefono: str, nombre: str) -> bool:
+    """Permite completar o corregir el nombre desde el CRM."""
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+        lead.nombre = (nombre or "No indicó").strip()[:100] or "No indicó"
         await session.commit()
         return True
 
@@ -436,6 +460,8 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
             query = query.where(Lead.cerrado == False)
         result = await session.execute(query)
         leads = result.scalars().all()
+        controls_result = await session.execute(select(ControlContacto))
+        controls = {control.telefono: control.bot_activo for control in controls_result.scalars().all()}
         return [
             {
                 "id": l.id,
@@ -456,6 +482,7 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "fecha_proxima_accion": l.fecha_proxima_accion or "",
                 "valor_oportunidad": l.valor_oportunidad or "",
                 "origen": l.origen or "WhatsApp",
+                "bot_activo": controls.get(l.telefono, True),
                 "timestamp": l.timestamp.isoformat(),
             }
             for l in leads
