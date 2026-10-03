@@ -55,6 +55,7 @@ class Lead(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     telefono: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     notificado: Mapped[bool] = mapped_column(Boolean, default=False)
+    revision_notificada: Mapped[bool] = mapped_column(Boolean, default=False)
     cerrado: Mapped[bool] = mapped_column(Boolean, default=False)
     descartado: Mapped[bool] = mapped_column(Boolean, default=False)
     # Datos extraídos de la conversación
@@ -118,6 +119,7 @@ async def inicializar_db():
             columnas = await conn.execute(text("PRAGMA table_info(leads)"))
             existentes = {fila[1] for fila in columnas.fetchall()}
             nuevas = {
+                "revision_notificada": "BOOLEAN DEFAULT 0",
                 "sentiment_score": "INTEGER DEFAULT 50",
                 "sentiment_label": "VARCHAR(30) DEFAULT 'neutral'",
                 "resumen": "TEXT DEFAULT 'No disponible'",
@@ -151,6 +153,7 @@ async def inicializar_db():
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS fecha_proxima_accion VARCHAR(30) DEFAULT ''"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS valor_oportunidad VARCHAR(100) DEFAULT ''"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS origen VARCHAR(100) DEFAULT 'WhatsApp'"))
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS revision_notificada BOOLEAN DEFAULT FALSE"))
 
     # Se consulta después de cerrar la transacción anterior. En PostgreSQL,
     # otro connection no puede ver la tabla hasta que create_all fue confirmado.
@@ -282,6 +285,18 @@ async def marcar_lead_notificado(telefono: str) -> bool:
         if not lead:
             return False
         lead.notificado = True
+        await session.commit()
+        return True
+
+
+async def marcar_revision_notificada(telefono: str) -> bool:
+    """Evita repetir alertas cuando un caso requiere revisión humana."""
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+        lead.revision_notificada = True
         await session.commit()
         return True
 
@@ -467,6 +482,7 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "id": l.id,
                 "telefono": l.telefono,
                 "notificado": l.notificado,
+                "revision_notificada": l.revision_notificada,
                 "cerrado": l.cerrado,
                 "descartado": l.descartado,
                 "nombre": l.nombre,

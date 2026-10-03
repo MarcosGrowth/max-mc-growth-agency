@@ -28,6 +28,7 @@ async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
         logger.warning("TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados — notificación omitida")
         return False
 
+
     telefono_limpio = telefono.replace("@s.whatsapp.net", "").replace("@c.us", "")
 
     nombre = info.get("nombre", "No indicó")
@@ -67,6 +68,32 @@ async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
                 return False
     except Exception as e:
         logger.error(f"Error enviando notificacion Telegram: {e}")
+        return False
+
+
+async def notificar_lead_revision(telefono: str, info: dict, motivo: str = "Caso fuera del perfil habitual o con calificación dudosa") -> bool:
+    """Avisa al equipo sin descartar el contacto cuando Max no tiene certeza."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logger.warning("Telegram no configurado — alerta de revisión omitida")
+        return False
+    telefono_limpio = telefono.replace("@s.whatsapp.net", "").replace("@c.us", "")
+    mensaje = (
+        "⚠️ *REVISAR LEAD — MC Growth Agency*\n\n"
+        f"📱 *WhatsApp:* +{telefono_limpio}\n"
+        f"👤 *Nombre:* {info.get('nombre', 'No indicó')}\n"
+        f"🏢 *Rubro:* {info.get('rubro', 'No indicó')}\n"
+        f"💰 *Presupuesto:* {info.get('presupuesto', 'No indicó')}\n"
+        f"🎯 *Interés:* {info.get('interes', 'No indicó')}\n"
+        f"📝 *Motivo:* {motivo}\n\n"
+        "Max lo dejó en seguimiento. Decidí manualmente si avanzar."
+    )
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": mensaje, "parse_mode": "Markdown"})
+            return r.status_code == 200
+    except Exception as e:
+        logger.error(f"Error enviando alerta de revisión: {e}")
         return False
 
 

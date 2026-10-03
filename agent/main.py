@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from agent.brain import generar_respuesta, extraer_info_lead
 from agent.memory import DATABASE_URL, inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, marcar_lead_notificado, actualizar_info_lead, actualizar_nombre_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, actualizar_seguimiento_lead, actualizar_datos_oportunidad, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal, obtener_control_contacto, establecer_control_contacto, obtener_configuracion, guardar_configuracion
 from agent.providers import obtener_proveedor
-from agent.telegram import notificar_lead_calificado
+from agent.telegram import notificar_lead_calificado, notificar_lead_revision
 
 load_dotenv()
 
@@ -246,7 +246,25 @@ async def webhook_handler(request: Request):
                     logger.info(f"Lead calificado notificado: {msg.telefono}")
                 await cambiar_estado_lead(msg.telefono, "contactado")
             elif no_calificado:
-                await cambiar_estado_lead(msg.telefono, "perdido")
+                # Nunca descartamos automáticamente: los casos dudosos quedan
+                # en seguimiento y se escalan a la persona responsable.
+                await cambiar_estado_lead(msg.telefono, "contactado")
+                datos_revision = next((l for l in await obtener_leads() if l["telefono"] == msg.telefono), None)
+                if datos_revision and not datos_revision.get("revision_notificada"):
+                    historial_revision = await obtener_historial(msg.telefono, limite=30)
+                    info_revision = await extraer_info_lead(historial_revision)
+                    await actualizar_info_lead(
+                        msg.telefono,
+                        nombre=info_revision.get("nombre", datos_revision.get("nombre", "No indicó")),
+                        rubro=info_revision.get("rubro", datos_revision.get("rubro", "No indicó")),
+                        presupuesto=info_revision.get("presupuesto", datos_revision.get("presupuesto", "No indicó")),
+                        interes=info_revision.get("interes", datos_revision.get("interes", "No indicó")),
+                        sentiment_score=info_revision.get("sentiment_score", 50),
+                        sentiment_label=info_revision.get("sentiment_label", "neutral"),
+                        resumen=info_revision.get("resumen", "Requiere revisión humana"),
+                    )
+                    await marcar_revision_notificada(msg.telefono)
+                    await notificar_lead_revision(msg.telefono, info_revision)
             elif nuevo_contacto:
                 # Cuando Max ya tomó el primer turno, movemos el contacto a contactado.
                 await cambiar_estado_lead(msg.telefono, "contactado")
