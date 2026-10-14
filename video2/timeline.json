@@ -1,0 +1,121 @@
+{
+  "_nota": "Tiempos del reel 2 (segundos). Las tres versiones comparten el cuerpo; solo cambia el gancho (0–3.4 s).",
+  "duracion": 38.0,
+  "bpm": 100,
+  "hook_start": 0.15,
+  "lineas": {
+    "b1": 3.45,
+    "b2": 7.25,
+    "b3": 14.6,
+    "b4": 21.0,
+    "b5": 29.2,
+    "b6": 32.4
+  },
+  "escenas": {
+    "giro": 3.4,
+    "cap1": 7.25,
+    "cap2": 14.6,
+    "cap3": 21.0,
+    "remate": 29.2,
+    "cta": 32.4
+  },
+  "resaltar": {
+    "rojo": [
+      "compran",
+      "desaparezcan",
+      "precio",
+      "curiosos",
+      "errores",
+      "baratos",
+      "clic",
+      "quién",
+      "sigue",
+      "cualquier",
+      "rápido",
+      "enfría",
+      "error"
+    ],
+    "verde": [
+      "compra",
+      "atiende",
+      "califica",
+      "deriva"
+    ],
+    "naranja": [
+      "tres",
+      "meta",
+      "sistema",
+      "diagnóstico",
+      "escapa"
+    ]
+  },
+  "cortes": {
+    "h1": [
+      2,
+      3,
+      3
+    ],
+    "h2": [
+      2,
+      4,
+      1,
+      2
+    ],
+    "h3": [
+      2,
+      4,
+      2,
+      1
+    ],
+    "b1": [
+      2,
+      2,
+      2,
+      2,
+      2
+    ],
+    "b2": [
+      1,
+      2,
+      3,
+      2,
+      2,
+      3,
+      3,
+      2,
+      2
+    ],
+    "b3": [
+      1,
+      2,
+      3,
+      2,
+      3,
+      3,
+      2,
+      2
+    ],
+    "b4": [
+      1,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      1,
+      1,
+      2
+    ],
+    "b5": [
+      3,
+      1,
+      3
+    ],
+    "b6": [
+      3,
+      2,
+      4
+    ]
+  }
+}

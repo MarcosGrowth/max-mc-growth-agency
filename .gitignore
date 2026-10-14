@@ -45,3 +45,6 @@ video/brag-output/draft.mp4
 video/brag-output/composition/.hyperframes/
 .hyperframes/
 .transcode-cache/
+video2/audio/out/*_raw.wav
+video2/draft_*.mp4
+video2/composition/.hyperframes/
