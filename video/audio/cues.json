@@ -1,0 +1,178 @@
+{
+  "_nota": "Fuente única de tiempos del reel (segundos). La composición de Hyperframes usa estos mismos valores.",
+  "duracion": 20.0,
+  "bpm": 120,
+  "vo": [
+    {
+      "id": "l1",
+      "start": 0.2
+    },
+    {
+      "id": "l2",
+      "start": 3.45
+    },
+    {
+      "id": "l3",
+      "start": 6.15
+    },
+    {
+      "id": "l4",
+      "start": 15.7
+    },
+    {
+      "id": "l5",
+      "start": 18.15
+    }
+  ],
+  "momentos": {
+    "mas_ventas": 2.0,
+    "corte_naranja": 5.55,
+    "orden": 6.0,
+    "modulo_ads": 7.45,
+    "modulo_landing": 8.2,
+    "modulo_ia": 8.75,
+    "modulo_crm": 10.0,
+    "modulo_auto": 10.75,
+    "max_ai": 11.4,
+    "embudo": 14.0,
+    "vista_total": 15.6,
+    "logo": 17.4
+  },
+  "sfx": [
+    {
+      "file": "interface/glitch_002.ogg",
+      "t": 0.05,
+      "gain": -10
+    },
+    {
+      "file": "ui/click3.ogg",
+      "t": 0.35,
+      "gain": -12
+    },
+    {
+      "file": "ui/click5.ogg",
+      "t": 0.62,
+      "gain": -13
+    },
+    {
+      "file": "interface/error_005.ogg",
+      "t": 0.95,
+      "gain": -16
+    },
+    {
+      "file": "ui/click2.ogg",
+      "t": 1.22,
+      "gain": -12
+    },
+    {
+      "file": "interface/glitch_004.ogg",
+      "t": 1.55,
+      "gain": -14
+    },
+    {
+      "file": "impact/impactPunch_heavy_002.ogg",
+      "t": 2.0,
+      "gain": -4
+    },
+    {
+      "file": "interface/drop_002.ogg",
+      "t": 4.1,
+      "gain": -14
+    },
+    {
+      "file": "synth:whoosh",
+      "t": 5.25,
+      "gain": -9
+    },
+    {
+      "file": "impact/impactMetal_heavy_000.ogg",
+      "t": 6.0,
+      "gain": -12
+    },
+    {
+      "file": "interface/switch_002.ogg",
+      "t": 7.45,
+      "gain": -12
+    },
+    {
+      "file": "interface/switch_002.ogg",
+      "t": 8.2,
+      "gain": -12
+    },
+    {
+      "file": "interface/switch_002.ogg",
+      "t": 8.75,
+      "gain": -12
+    },
+    {
+      "file": "interface/switch_002.ogg",
+      "t": 10.0,
+      "gain": -12
+    },
+    {
+      "file": "interface/switch_002.ogg",
+      "t": 10.75,
+      "gain": -12
+    },
+    {
+      "file": "synth:whoosh",
+      "t": 11.1,
+      "gain": -11
+    },
+    {
+      "file": "ui/click1.ogg",
+      "t": 11.53,
+      "gain": -15
+    },
+    {
+      "file": "ui/click1.ogg",
+      "t": 11.8,
+      "gain": -15
+    },
+    {
+      "file": "ui/click1.ogg",
+      "t": 12.07,
+      "gain": -15
+    },
+    {
+      "file": "ui/click1.ogg",
+      "t": 12.33,
+      "gain": -15
+    },
+    {
+      "file": "interface/select_008.ogg",
+      "t": 13.27,
+      "gain": -13
+    },
+    {
+      "file": "synth:whoosh",
+      "t": 13.75,
+      "gain": -12
+    },
+    {
+      "file": "interface/click_002.ogg",
+      "t": 14.67,
+      "gain": -14
+    },
+    {
+      "file": "interface/click_002.ogg",
+      "t": 15.0,
+      "gain": -14
+    },
+    {
+      "file": "interface/bong_001.ogg",
+      "t": 15.33,
+      "gain": -15
+    },
+    {
+      "file": "synth:whoosh",
+      "t": 17.0,
+      "gain": -10
+    },
+    {
+      "file": "impact/impactPunch_heavy_000.ogg",
+      "t": 17.4,
+      "gain": -6
+    }
+  ]
+}

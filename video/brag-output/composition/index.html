@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>MC Growth — Reel 20s</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Geist"; src: url("assets/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; }
+      @font-face { font-family: "Geist Mono"; src: url("assets/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; }
+      :root {
+        --bg: #09090b; --surface: #0d0d10; --surface2: #17181d; --orange: #f47b20; --orange-l: #ff9a4d;
+        --orange-s: #ffb36f; --orange-d: #7b2905; --text: #f5f6f8; --gray: #aeb4c3; --dim: #8a90a0; --green: #1ac979;
+      }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: "Geist", Arial, sans-serif; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+      .full { position: absolute; inset: 0; }
+      .clip { position: absolute; inset: 0; }
+      .stage { position: absolute; inset: 0; perspective: 1800px; perspective-origin: 50% 40%; }
+      .world { position: absolute; inset: 0; transform-style: preserve-3d; }
+
+      /* Fondo: grilla técnica + brillo naranja + viñeta */
+      #grid {
+        position: absolute; left: -200px; top: -200px; width: 1480px; height: 2320px;
+        background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+        background-size: 90px 90px;
+      }
+      #glow { position: absolute; left: 40px; top: 260px; width: 1000px; height: 1000px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(244,123,32,0.32) 0%, rgba(244,123,32,0.08) 40%, rgba(244,123,32,0) 70%); }
+      #vignette { position: absolute; inset: 0; pointer-events: none;
+        background: radial-gradient(ellipse 75% 60% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.6) 100%); }
+
+      /* Tipografía cinética */
+      .kin { position: absolute; left: 80px; width: 900px; font-weight: 900; letter-spacing: -4px; line-height: 0.98; }
+      .ln { display: block; overflow: hidden; padding: 0 0 8px 0; }
+      .ln > span { display: block; }
+      .orange { color: var(--orange); }
+      .mono { font-family: "Geist Mono", monospace; }
+
+      /* Tarjetas de UI genéricas (escena caos) */
+      .card { position: absolute; width: 440px; box-sizing: border-box; padding: 24px 26px; border-radius: 22px;
+        background: rgba(23,24,29,0.94); border: 1.5px solid rgba(255,255,255,0.09); box-shadow: 0 30px 80px rgba(0,0,0,0.55); }
+      .card .k { font-family: "Geist Mono", monospace; font-size: 19px; letter-spacing: 2px; color: var(--dim); }
+      .card .t { font-size: 30px; font-weight: 700; margin-top: 8px; }
+      .card .s { font-size: 23px; color: var(--gray); margin-top: 6px; }
+      .badge { display: inline-block; margin-top: 14px; font-family: "Geist Mono", monospace; font-size: 18px; letter-spacing: 2px;
+        padding: 7px 14px; border-radius: 30px; border: 1.5px solid rgba(255,154,77,0.6); color: var(--orange-s); }
+      .spark { display: flex; align-items: flex-end; gap: 7px; height: 70px; margin-top: 14px; }
+      .spark i { display: block; width: 22px; border-radius: 4px; background: rgba(174,180,195,0.35); }
+
+      /* Escena 1: flash naranja */
+      #flood { position: absolute; inset: 0; background: var(--orange); }
+      #flood .kin { color: #09090b; top: 660px; font-size: 196px; letter-spacing: -8px; line-height: 0.92; }
+
+      /* Escena 2: lead perdido */
+      #lostlead { position: absolute; left: 110px; top: 470px; width: 860px; padding: 36px 40px; border-radius: 32px; box-sizing: border-box;
+        background: linear-gradient(180deg, #17181d, #0d0d10); border: 1.5px solid rgba(255,255,255,0.1); box-shadow: 0 50px 120px rgba(0,0,0,0.6); }
+      #lostlead .row { display: flex; justify-content: space-between; align-items: center; }
+      #lostlead .k { font-family: "Geist Mono", monospace; font-size: 24px; letter-spacing: 3px; color: var(--orange); }
+      #lostlead .name { font-size: 46px; font-weight: 800; margin-top: 18px; letter-spacing: -1px; }
+      #lostlead .msg { margin-top: 26px; font-size: 32px; color: var(--text); background: var(--surface2); border: 1.5px solid rgba(255,255,255,0.08);
+        padding: 22px 26px; border-radius: 22px; border-bottom-left-radius: 6px; width: 560px; }
+      #lostlead .status { font-family: "Geist Mono", monospace; font-size: 22px; letter-spacing: 2px; color: var(--gray); padding: 10px 18px;
+        border-radius: 30px; border: 1.5px solid rgba(174,180,195,0.35); }
+      #slash { position: absolute; left: -260px; top: 900px; width: 1600px; height: 10px; border-radius: 5px; background: var(--orange);
+        box-shadow: 0 0 30px var(--orange), 0 0 80px rgba(244,123,32,0.6); }
+
+      /* Escena 3: MC Growth System */
+      #orb { position: absolute; left: 380px; top: 600px; width: 320px; height: 320px; border-radius: 50%;
+        background: radial-gradient(circle at 38% 32%, #ffb36f 0%, #f47b20 45%, #b44a0c 80%, #7b2905 100%);
+        box-shadow: 0 0 80px rgba(244,123,32,0.65), 0 0 220px rgba(244,123,32,0.35);
+        display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      #orb .mc { font-size: 118px; font-weight: 900; letter-spacing: -8px; color: #fff; line-height: 0.9; }
+      #orb .sys { font-family: "Geist Mono", monospace; font-size: 18px; letter-spacing: 5px; color: #fff3e8; margin-top: 12px; text-align: center; line-height: 1.5; }
+      .ring { position: absolute; border-radius: 50%; border: 1.5px solid rgba(244,123,32,0.22); }
+      .mod { position: absolute; width: 260px; height: 140px; margin-left: -130px; margin-top: -70px; box-sizing: border-box; padding: 20px 24px;
+        border-radius: 28px; background: rgba(13,13,16,0.95); border: 2px solid rgba(255,255,255,0.12); box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+      .mod .i { font-family: "Geist Mono", monospace; font-size: 20px; color: var(--orange); letter-spacing: 2px; }
+      .mod .n { font-size: 33px; font-weight: 800; margin-top: 10px; letter-spacing: -0.5px; }
+      .mod .n.small { font-size: 24px; }
+      .mod .ok { position: absolute; right: 18px; top: 16px; width: 34px; height: 34px; border-radius: 50%; background: var(--orange);
+        color: #09090b; font-size: 22px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+      #flow { position: absolute; left: 80px; top: 1260px; width: 920px; font-size: 64px; font-weight: 900; letter-spacing: -2px; line-height: 1.15; }
+      #flow .w { display: inline-block; overflow: hidden; vertical-align: top; }
+      #flow .w > span { display: inline-block; }
+      #flow .arr { color: var(--orange); }
+
+      /* Escenas 4–5: piezas de Remotion */
+      .vwrap { position: absolute; inset: 0; transform-style: preserve-3d; }
+      .vwrap video { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .cap { position: absolute; left: 80px; top: 250px; width: 920px; font-size: 104px; font-weight: 900; letter-spacing: -4px; line-height: 1; }
+
+      /* Escena 6: vista total */
+      #board { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; transform-style: preserve-3d; }
+      .bimg { position: absolute; }
+      #mini-orb { position: absolute; left: 470px; top: 690px; width: 140px; height: 140px; border-radius: 50%;
+        background: radial-gradient(circle at 38% 32%, #ffb36f 0%, #f47b20 45%, #7b2905 100%); box-shadow: 0 0 60px rgba(244,123,32,0.7); }
+      #point { position: absolute; left: 520px; top: 740px; width: 40px; height: 40px; border-radius: 50%; background: #fff3e8;
+        box-shadow: 0 0 30px #f47b20, 0 0 90px #f47b20, 0 0 200px rgba(244,123,32,0.7); }
+
+      /* Escena 7: cierre */
+      #logo { position: absolute; left: 90px; top: 640px; width: 900px; }
+      #tagline { position: absolute; left: 0; width: 1080px; top: 1000px; text-align: center; font-family: "Geist Mono", monospace; font-size: 33px; letter-spacing: 3px; color: var(--gray); }
+      #cta { position: absolute; left: 230px; top: 1120px; width: 620px; height: 110px; border-radius: 18px; background: var(--orange); color: #09090b;
+        font-size: 42px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 18px; box-shadow: 0 0 60px rgba(244,123,32,0.45); }
+      #url { position: absolute; left: 0; width: 1080px; top: 1285px; text-align: center; font-family: "Geist Mono", monospace; font-size: 36px; color: var(--gray); letter-spacing: 1px; }
+      #shock { position: absolute; left: 340px; top: 560px; width: 400px; height: 400px; border-radius: 50%; border: 6px solid var(--orange); box-sizing: border-box; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="20">
+      <!-- Fondo persistente -->
+      <div class="full" id="bgwrap">
+        <div id="grid"></div>
+        <div id="glow"></div>
+      </div>
+
+      <audio id="mix" src="assets/audio/mix.wav" data-start="0" data-duration="20" data-track-index="9" data-volume="1"></audio>
+
+      <!-- ESCENA 1 · CAOS (0–3.4) -->
+      <section id="s1" class="clip" data-start="0" data-duration="3.4" data-track-index="1">
+        <div class="stage" data-layout-allow-overlap data-layout-allow-occlusion><div class="world" id="chaos" data-layout-allow-overlap></div></div>
+        <div id="s1shade" data-layout-allow-overlap class="full" style="background: linear-gradient(180deg, rgba(9,9,11,0) 52%, rgba(9,9,11,0.92) 70%, rgba(9,9,11,0.92) 100%)"></div>
+        <div data-layout-allow-overflow class="kin" id="s1txt" style="top: 1190px; font-size: 124px">
+          <div class="ln"><span data-layout-allow-overlap id="t-anuncios">MÁS ANUNCIOS.</span></div>
+          <div class="ln"><span data-layout-allow-overlap id="t-leads">MÁS LEADS.</span></div>
+        </div>
+        <div id="startdot" style="position:absolute; left:520px; top:740px; width:40px; height:40px; border-radius:50%; background:#fff3e8; box-shadow:0 0 30px #f47b20, 0 0 90px #f47b20"></div>
+      </section>
+
+      <section id="s1b" style="z-index: 5" class="clip" data-start="2.0" data-duration="1.4" data-track-index="2">
+        <div id="flood">
+          <div data-layout-allow-overflow class="kin" id="ventas">
+            <div class="ln"><span id="t-mas">¿MÁS</span></div>
+            <div class="ln"><span id="t-ventas">VENTAS?</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ESCENA 2 · EL PROBLEMA (3.1–6.05) -->
+      <section id="s2" class="clip" data-start="3.1" data-duration="2.95" data-track-index="3">
+        <div class="stage" data-layout-allow-overlap><div class="world" id="s2world" data-layout-allow-overlap>
+          <div id="ghost1" data-layout-allow-overlap class="card" style="left: 560px; top: 300px; opacity: 0.35"><div class="k" data-layout-allow-overlap>LEAD · DUPLICADO</div><div class="t" data-layout-allow-overlap>Nuevo lead</div></div>
+          <div id="ghost2" data-layout-allow-overlap class="card" style="left: 40px; top: 380px; opacity: 0.3"><div class="k" data-layout-allow-overlap>FORMULARIO</div><div class="t" data-layout-allow-overlap>Sin asignar</div></div>
+          <div id="lostlead">
+            <div class="row"><span class="k">LEAD #00517</span><span class="status" id="lstatus">SIN RESPONDER</span></div>
+            <div class="name">Consulta desde Meta Ads</div>
+            <div class="msg">¿Siguen teniendo disponibilidad?</div>
+          </div>
+        </div></div>
+        <div data-layout-allow-overflow class="kin" style="top: 1130px; font-size: 118px">
+          <div class="ln"><span id="t-prob1">EL PROBLEMA</span></div>
+          <div class="ln"><span id="t-prob2">NO TERMINA</span></div>
+          <div class="ln"><span id="t-prob3" class="orange">EN EL CLIC.</span></div>
+        </div>
+        <div id="slash"></div>
+      </section>
+
+      <!-- ESCENA 3 · EL SISTEMA (5.95–11.5) -->
+      <section id="s3" class="clip" data-start="5.95" data-duration="5.55" data-track-index="4">
+        <div class="stage"><div class="world" id="s3world">
+          <div class="ring" id="ring1" style="left: 190px; top: 410px; width: 700px; height: 700px"></div>
+          <div class="ring" id="ring2" style="left: 90px; top: 310px; width: 900px; height: 900px; border-color: rgba(244,123,32,0.12)"></div>
+          <svg id="lines" width="1080" height="1920" style="position:absolute; left:0; top:0; overflow:visible">
+            <g id="linesg" stroke="#F47B20" stroke-width="4" stroke-linecap="round" fill="none"></g>
+            <path id="loop" d="" stroke="#F47B20" stroke-width="3" fill="none" opacity="0.7"></path>
+            <g id="dots" fill="#FFB36F"></g>
+          </svg>
+          <div id="orb"><div class="mc">MC</div><div class="sys">GROWTH<br />SYSTEM</div></div>
+          <div id="mods"></div>
+        </div></div>
+        <div id="flow" data-layout-allow-overflow></div>
+      </section>
+
+      <!-- ESCENA 4 · MAX AI (Remotion) -->
+      <div class="stage" id="chatstage"><div class="vwrap" id="chatwrap">
+        <video id="v-chat" src="assets/clips/MaxAIChat.webm" muted playsinline data-start="11.4" data-duration="2.75" data-track-index="5"></video>
+      </div></div>
+      <section id="s4" class="clip" data-start="11.4" data-duration="2.7" data-track-index="6">
+        <div class="cap" data-layout-allow-overlap data-layout-allow-overflow><div class="ln"><span data-layout-allow-overlap id="c-resp">RESPONDER.</span></div></div>
+        <div class="cap" data-layout-allow-overlap data-layout-allow-overflow><div class="ln"><span data-layout-allow-overlap id="c-cal" class="orange">CALIFICAR.</span></div></div>
+      </section>
+
+      <!-- ESCENA 5 · EMBUDO (Remotion) -->
+      <div class="stage" id="embstage"><div class="vwrap" id="embwrap">
+        <video id="v-emb" src="assets/clips/Embudo.webm" muted playsinline data-start="13.9" data-duration="2.15" data-track-index="7"></video>
+      </div></div>
+      <section id="s5" class="clip" data-start="13.95" data-duration="1.85" data-track-index="8">
+        <div class="cap" data-layout-allow-overlap data-layout-allow-overflow><div class="ln"><span data-layout-allow-overlap id="c-org">ORGANIZAR Y SEGUIR.</span></div></div>
+        <div class="cap" data-layout-allow-overlap data-layout-allow-overflow><div class="ln"><span data-layout-allow-overlap id="c-conv" class="orange">CONVERTIR MEJOR.</span></div></div>
+      </section>
+
+      <!-- ESCENA 6 · VISTA TOTAL (15.6–17.5) -->
+      <section id="s6" class="clip" data-start="15.6" data-duration="1.9" data-track-index="10">
+        <div class="stage" style="perspective-origin: 50% 35%"><div id="board">
+          <svg width="1080" height="1920" style="position:absolute; left:0; top:0; overflow:visible">
+            <g id="blines" stroke="#F47B20" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.85">
+              <path id="bl1" d="M540 760 C 420 700, 330 620, 250 560" />
+              <path id="bl2" d="M540 760 C 660 700, 760 640, 830 600" />
+              <path id="bl3" d="M540 760 C 540 900, 540 1000, 540 1080" />
+            </g>
+            <g id="bdots" fill="#FFB36F"></g>
+          </svg>
+          <img class="bimg" id="b-chat" src="assets/img/chat_final.png" style="left: 0px; top: 220px; width: 500px" />
+          <img class="bimg" id="b-emb" src="assets/img/embudo_final.png" style="left: 580px; top: 250px; width: 500px" />
+          <div id="mini-orb"></div>
+          <div class="mod" id="b-mod1" style="left: 300px; top: 1110px; width: 220px; height: 110px; padding: 16px 20px"><div class="i">01</div><div class="n" style="font-size:28px">ADS</div></div>
+          <div class="mod" id="b-mod2" style="left: 540px; top: 1150px; width: 220px; height: 110px; padding: 16px 20px"><div class="i">04</div><div class="n" style="font-size:28px">CRM</div></div>
+          <div class="mod" id="b-mod3" style="left: 780px; top: 1110px; width: 220px; height: 110px; padding: 16px 20px"><div class="i">05</div><div class="n" style="font-size:24px">AUTOMATIZ.</div></div>
+        </div></div>
+        <div id="point"></div>
+        <div data-layout-allow-overflow class="kin" style="top: 1300px; font-size: 104px; letter-spacing: -4px">
+          <div class="ln"><span id="h1">Convertimos inversión</span></div>
+          <div class="ln"><span id="h2" class="orange">en crecimiento.</span></div>
+        </div>
+      </section>
+
+      <!-- ESCENA 7 · CIERRE (17.3–20) -->
+      <section id="s7" class="clip" data-start="17.3" data-duration="2.7" data-track-index="11">
+        <div id="endglow" style="position:absolute; left:40px; top:260px; width:1000px; height:1000px; border-radius:50%; background: radial-gradient(circle, rgba(244,123,32,0.45) 0%, rgba(244,123,32,0.1) 40%, rgba(244,123,32,0) 70%)"></div>
+        <div id="shock"></div>
+        <div id="endset">
+          <img id="logo" src="assets/img/logo_alpha.png" />
+          <div id="tagline"><span id="tag-text">MARKETING + IA + SISTEMAS COMERCIALES</span></div>
+          <div id="cta"><span>Solicitar diagnóstico</span><span style="font-size: 44px">↗</span></div>
+          <div id="url">growth.mcmarketingdig.com</div>
+        </div>
+        <div id="enddot" style="position:absolute; left:520px; top:740px; width:40px; height:40px; border-radius:50%; background:#fff3e8; box-shadow:0 0 30px #f47b20, 0 0 90px #f47b20"></div>
+      </section>
+
+      <div id="vignette"></div>
+    </div>
+
+    <script>
+      // ── Datos y utilidades deterministas ─────────────────────
+      function mulberry32(a) {
+        return function () {
+          a |= 0; a = (a + 0x6d2b79f5) | 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+      const rnd = mulberry32(482);
+      const R = (a, b) => a + (b - a) * rnd();
+
+      // Tiempos (mismos valores que video/audio/cues.json)
+      const T = { masVentas: 2.0, corte: 5.55, orden: 6.0, ads: 7.45, landing: 8.2, ia: 8.75, crm: 10.0, auto: 10.75, maxai: 11.4, embudo: 14.0, vista: 15.6, logo: 17.4, end: 20.0 };
+
+      // ── Escena 1: tarjetas del caos (contenido genérico, sin cifras) ──
+      const chaosCards = [
+        { k: "META ADS", t: "Nuevo lead", s: "Formulario de contacto" },
+        { k: "WHATSAPP", t: "¿Me pasás precio?", b: "SIN RESPONDER" },
+        { k: "GOOGLE ADS", t: "Campaña activa", spark: true },
+        { k: "CRM", t: "Nuevo lead", b: "DUPLICADO" },
+        { k: "LANDING", t: "Formulario enviado", s: "Página de contacto" },
+        { k: "INSTAGRAM", t: "Consulta por DM", b: "SIN ASIGNAR" },
+        { k: "META ADS", t: "Campaña activa", spark: true },
+        { k: "EMAIL", t: "Seguimiento pendiente", s: "Sin responsable" },
+        { k: "WHATSAPP", t: "Hola, ¿siguen atendiendo?", b: "SIN RESPONDER" },
+        { k: "CRM", t: "Nuevo lead", b: "DUPLICADO" },
+      ];
+      const chaos = document.getElementById("chaos");
+      const slots = [
+        [40, 180, -300], [600, 120, -650], [360, 430, -100], [-40, 560, -900], [640, 520, 80],
+        [120, 860, -450], [600, 900, -250], [-60, 1180, 150], [420, 1150, -800], [700, 1320, -120],
+      ];
+      const chaosEls = chaosCards.map((c, i) => {
+        const el = document.createElement("div");
+        el.className = "card";
+        let html = `<div class="k">${c.k}</div><div class="t">${c.t}</div>`;
+        if (c.s) html += `<div class="s">${c.s}</div>`;
+        if (c.b) html += `<div class="badge">${c.b}</div>`;
+        if (c.spark) html += `<div class="spark">${[0.3, 0.55, 0.4, 0.8, 0.6, 0.95, 0.7, 0.5].map((h) => `<i style="height:${Math.round(h * 70)}px"></i>`).join("")}</div>`;
+        el.innerHTML = html;
+        // capas encimadas a propósito: es el caos
+        [el, ...el.querySelectorAll("*")].forEach((n) => n.setAttribute("data-layout-allow-overlap", ""));
+        el.style.left = slots[i][0] + "px";
+        el.style.top = slots[i][1] + "px";
+        chaos.appendChild(el);
+        return el;
+      });
+
+      // ── Escena 3: módulos del sistema ──
+      const modsData = [
+        { id: "ads", n: "ADS", x: 540, y: 380, t: T.ads },
+        { id: "landing", n: "LANDING", x: 850, y: 640, t: T.landing },
+        { id: "ia", n: "IA", x: 735, y: 1090, t: T.ia },
+        { id: "crm", n: "CRM", x: 345, y: 1090, t: T.crm },
+        { id: "auto", n: "AUTOMATIZACIÓN", x: 230, y: 640, t: T.auto, small: true },
+      ];
+      const ORB = { x: 540, y: 760 };
+      const modsEl = document.getElementById("mods");
+      const linesG = document.getElementById("linesg");
+      const dotsG = document.getElementById("dots");
+      const NS = "http://www.w3.org/2000/svg";
+      modsData.forEach((m, i) => {
+        const el = document.createElement("div");
+        el.className = "mod";
+        el.id = "mod-" + m.id;
+        el.style.left = m.x + "px";
+        el.style.top = m.y + "px";
+        el.innerHTML = `<div class="i">0${i + 1}</div><div class="n${m.small ? " small" : ""}">${m.n}</div><div class="ok" id="ok-${m.id}">✓</div>`;
+        modsEl.appendChild(el);
+        const ln = document.createElementNS(NS, "line");
+        ln.setAttribute("x1", ORB.x); ln.setAttribute("y1", ORB.y); ln.setAttribute("x2", m.x); ln.setAttribute("y2", m.y);
+        ln.id = "ln-" + m.id;
+        const len = Math.hypot(m.x - ORB.x, m.y - ORB.y);
+        ln.setAttribute("stroke-dasharray", len); ln.setAttribute("stroke-dashoffset", len);
+        linesG.appendChild(ln);
+        m.len = len;
+        const d = document.createElementNS(NS, "circle");
+        d.setAttribute("r", 9); d.setAttribute("cx", ORB.x); d.setAttribute("cy", ORB.y); d.setAttribute("opacity", 0);
+        d.id = "dot-" + m.id;
+        dotsG.appendChild(d);
+      });
+      document.getElementById("loop").setAttribute("d", "M" + modsData.map((m) => `${m.x} ${m.y}`).join(" L") + " Z");
+      const loopLen = modsData.reduce((acc, m, i) => { const n = modsData[(i + 1) % modsData.length]; return acc + Math.hypot(n.x - m.x, n.y - m.y); }, 0);
+      const loopEl = document.getElementById("loop");
+      loopEl.setAttribute("stroke-dasharray", loopLen); loopEl.setAttribute("stroke-dashoffset", loopLen);
+
+      // fila "ADS → LANDING → IA → CRM → AUTOMATIZACIÓN"
+      const flow = document.getElementById("flow");
+      modsData.forEach((m, i) => {
+        if (i > 0) flow.insertAdjacentHTML("beforeend", `<span class="w"><span class="arr" id="fa-${m.id}">→&nbsp;</span></span>`);
+        flow.insertAdjacentHTML("beforeend", `<span class="w"><span id="fw-${m.id}">${m.n}</span></span>${i < modsData.length - 1 ? " " : ""}`);
+      });
+
+      // puntos que recorren el tablero de la vista total
+      const bdots = document.getElementById("bdots");
+      ["bl1", "bl2", "bl3"].forEach((id) => {
+        const c = document.createElementNS(NS, "circle");
+        c.setAttribute("r", 10); c.id = "bd-" + id; c.setAttribute("opacity", 0);
+        bdots.appendChild(c);
+      });
+
+      // ── Línea de tiempo ─────────────────────────────────────
+      const tl = gsap.timeline({ paused: true, defaults: { ease: "expo.out" } });
+      const lineIn = (sel, t, d = 0.55) => tl.fromTo(sel, { yPercent: 135, filter: "blur(10px)" }, { yPercent: 0, filter: "blur(0px)", duration: d }, t);
+      const lineOut = (sel, t, d = 0.3) => tl.fromTo(sel, { yPercent: 0, filter: "blur(0px)" }, { yPercent: -135, filter: "blur(8px)", duration: d, ease: "power3.in", immediateRender: false }, t);
+
+      // Fondo: la grilla deriva y el brillo respira según la escena
+      tl.fromTo("#grid", { x: 0, y: 0 }, { x: -90, y: -180, duration: T.end, ease: "none" }, 0);
+      tl.fromTo("#glow", { opacity: 0.15, scale: 0.8 }, { opacity: 0.35, scale: 1, duration: 2, ease: "sine.inOut" }, 0);
+      tl.to("#glow", { opacity: 0.08, scale: 0.7, duration: 0.6 }, 3.3);
+      tl.to("#glow", { opacity: 0.9, scale: 1.15, duration: 0.8 }, T.orden);
+      tl.to("#glow", { opacity: 0.45, scale: 1, duration: 1.2, ease: "sine.inOut" }, T.maxai);
+      tl.to("#glow", { opacity: 0.9, scale: 1.2, duration: 1.2, ease: "sine.inOut" }, T.vista);
+
+      // ESCENA 1 — punto inicial (costura del loop) que estalla en caos
+      tl.fromTo("#startdot", { scale: 1, opacity: 1 }, { scale: 0, opacity: 0, duration: 0.18, ease: "power2.in" }, 0.0);
+      chaosEls.forEach((el, i) => {
+        const [x, y, z] = slots[i];
+        const fromX = (x - 440) * 2.2, fromY = (y - 700) * 1.6;
+        tl.fromTo(el, { x: fromX, y: fromY, z: -2600, rotationY: R(-60, 60), rotationX: R(-40, 40), opacity: 0 },
+          { x: 0, y: 0, z: z, rotationY: R(-22, 22), rotationX: R(-14, 14), rotationZ: R(-6, 6), opacity: 1, duration: 0.6 }, 0.0 + i * 0.07);
+        // deriva nerviosa
+        tl.to(el, { xPercent: R(-14, 14), yPercent: R(-18, 18), duration: 1.4, ease: "sine.inOut" }, 0.75 + i * 0.04);
+      });
+      tl.fromTo("#chaos", { z: -200, rotationZ: 0 }, { z: 520, rotationZ: -4, duration: 2.0, ease: "power2.in" }, 0); // la cámara avanza
+      tl.to(["#s1txt", "#chaos"], { opacity: 0, duration: 0.05, ease: "none" }, 2.9);
+      lineIn("#t-anuncios", 0.3);
+      lineIn("#t-leads", 1.0);
+
+      // ¿MÁS VENTAS? — interrupción naranja (beat-locked: 2.00s)
+      tl.fromTo("#flood", { clipPath: "inset(48% 0% 48% 0%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration: 0.12, ease: "power4.out" }, T.masVentas);
+      tl.fromTo("#ventas", { scale: 1.12 }, { scale: 1, duration: 0.5, ease: "expo.out" }, T.masVentas);
+      tl.fromTo("#ventas", { scale: 1 }, { scale: 1.06, duration: 0.95, ease: "none", immediateRender: false }, T.masVentas + 0.5);
+      lineIn("#t-mas", T.masVentas + 0.02, 0.35);
+      lineIn("#t-ventas", T.masVentas + 0.1, 0.35);
+      tl.fromTo("#flood", { clipPath: "inset(0% 0% 0% 0%)" }, { clipPath: "inset(0% 0% 100% 0%)", duration: 0.32, ease: "power3.in", immediateRender: false }, 3.05);
+
+      // ESCENA 2 — el lead que se pierde
+      tl.fromTo("#lostlead", { z: -500, rotationX: 24, y: 80, opacity: 0 }, { z: 0, rotationX: 8, y: 0, opacity: 1, duration: 0.7 }, 3.2);
+      tl.fromTo(["#ghost1", "#ghost2"], { z: -900, opacity: 0 }, { z: -500, opacity: 0.35, duration: 0.7, stagger: 0.1 }, 3.3);
+      tl.fromTo("#lstatus", { color: "#AEB4C3", borderColor: "rgba(174,180,195,0.35)" }, { color: "#FFB36F", borderColor: "rgba(255,154,77,0.8)", duration: 0.15, ease: "none", yoyo: true, repeat: 3 }, 4.1);
+      tl.to("#lostlead", { z: -1500, y: -120, rotationX: 22, rotationZ: -6, opacity: 0.28, filter: "blur(5px) grayscale(1)", duration: 1.5, ease: "power2.inOut" }, 4.1);
+      tl.to(["#ghost1", "#ghost2"], { z: -1800, opacity: 0, filter: "blur(6px)", duration: 1.2, ease: "power2.in" }, 4.15);
+      lineIn("#t-prob1", 3.45);
+      lineIn("#t-prob2", 3.65);
+      lineIn("#t-prob3", 4.3);
+      // la línea naranja corta la pantalla y colapsa en un punto
+      tl.set("#slash", { rotation: -18, transformOrigin: "0% 50%" }, 0);
+      tl.fromTo("#slash", { scaleX: 0, opacity: 1 }, { scaleX: 1, duration: 0.28, ease: "power4.out" }, T.corte);
+      tl.to(["#t-prob1", "#t-prob2", "#t-prob3"], { opacity: 0, filter: "blur(12px)", duration: 0.25, ease: "power2.in" }, 5.72);
+      tl.to("#s2world", { scale: 1.35, opacity: 0, filter: "blur(10px)", duration: 0.3, ease: "power2.in" }, 5.7);
+      tl.set("#slash", { transformOrigin: "50% 50%" }, 5.84);
+      tl.to("#slash", { scaleX: 0.005, duration: 0.18, ease: "power3.in" }, 5.84);
+
+      // ESCENA 3 — del caos al orden (beat-locked: 6.00s)
+      tl.fromTo("#orb", { scale: 0, rotation: -30 }, { scale: 1, rotation: 0, duration: 0.9, ease: "back.out(1.6)" }, T.orden);
+      tl.fromTo(["#ring1", "#ring2"], { scale: 0.2, opacity: 0 }, { scale: 1, opacity: 1, duration: 1.2, stagger: 0.12 }, T.orden + 0.05);
+      tl.fromTo("#ring1", { rotation: 0 }, { rotation: 40, duration: 5.4, ease: "none" }, T.orden);
+      tl.fromTo("#s3world", { scale: 0.9, rotationX: 14, y: 40 }, { scale: 1.03, rotationX: 4, y: 0, duration: 5.0, ease: "sine.inOut" }, T.orden);
+      // beat-grid: la esfera late cada 0.5 s durante el groove
+      for (let b = T.orden + 0.5; b < 11.0; b += 0.5) {
+        tl.fromTo("#orb", { boxShadow: "0 0 120px rgba(244,123,32,0.9), 0 0 260px rgba(244,123,32,0.5)" }, { boxShadow: "0 0 80px rgba(244,123,32,0.65), 0 0 220px rgba(244,123,32,0.35)", duration: 0.45, ease: "power2.out", immediateRender: false }, b);
+      }
+      modsData.forEach((m, i) => {
+        // aparición previa, apagada
+        tl.fromTo("#mod-" + m.id, { scale: 0.6, opacity: 0, z: -300 }, { scale: 1, opacity: 0.85, z: 0, duration: 0.6 }, T.orden + 0.35 + i * 0.12);
+        tl.set("#ok-" + m.id, { scale: 0 }, 0);
+        // activación sincronizada con la voz
+        tl.to("#ln-" + m.id, { attr: { "stroke-dashoffset": 0 }, duration: 0.35, ease: "power3.out" }, m.t - 0.2);
+        tl.to("#mod-" + m.id, { opacity: 1, borderColor: "rgba(244,123,32,0.95)", backgroundColor: "rgba(40,20,8,0.96)", boxShadow: "0 0 50px rgba(244,123,32,0.45)", duration: 0.25, ease: "power2.out" }, m.t);
+        tl.fromTo("#mod-" + m.id, { scale: 1 }, { scale: 1.1, duration: 0.14, ease: "power2.out", yoyo: true, repeat: 1, immediateRender: false }, m.t);
+        tl.to("#ok-" + m.id, { scale: 1, duration: 0.35, ease: "back.out(3)" }, m.t + 0.05);
+        // partícula que viaja de la esfera al módulo, en bucle finito
+        const dur = 0.7, reps = Math.max(0, Math.floor((11.2 - m.t) / dur) - 1);
+        tl.fromTo("#dot-" + m.id, { attr: { cx: ORB.x, cy: ORB.y }, opacity: 1 }, { attr: { cx: m.x, cy: m.y }, duration: dur, ease: "power1.inOut", repeat: reps }, m.t + 0.1);
+        // palabra de la fila
+        if (i > 0) lineIn("#fa-" + m.id, m.t - 0.05, 0.4);
+        lineIn("#fw-" + m.id, m.t, 0.45);
+        if (i > 0) tl.to("#fw-" + modsData[i - 1].id, { color: "#F5F6F8", duration: 0.2 }, m.t);
+        tl.set("#fw-" + m.id, { color: "#F47B20" }, m.t);
+      });
+      tl.to("#fw-auto", { color: "#F5F6F8", duration: 0.3 }, 11.0);
+      // "en un solo sistema": el anillo une todos los módulos
+      tl.to("#loop", { attr: { "stroke-dashoffset": 0 }, duration: 0.6, ease: "power2.inOut" }, 10.75);
+      tl.fromTo("#orb", { scale: 1 }, { scale: 1.12, duration: 0.25, yoyo: true, repeat: 1, ease: "power2.out", immediateRender: false }, 10.75);
+      // la cámara se zambulle en IA
+      tl.set("#s3world", { transformOrigin: "735px 1090px" }, 11.0);
+      tl.to("#s3world", { scale: 3.4, opacity: 0, filter: "blur(12px)", duration: 0.45, ease: "power3.in" }, 11.05);
+      tl.to("#flow", { opacity: 0, y: 40, filter: "blur(10px)", duration: 0.3, ease: "power2.in" }, 11.05);
+
+      // ESCENA 4 — Max AI (pieza de Remotion)
+      tl.fromTo("#chatwrap", { scale: 0.72, rotationX: 20, rotationY: -16, y: 60, opacity: 0, filter: "blur(14px)" },
+        { scale: 0.84, rotationX: 7, rotationY: -5, y: 10, opacity: 1, filter: "blur(0px)", duration: 0.7 }, T.maxai);
+      tl.to("#chatwrap", { scale: 0.86, rotationX: 3, rotationY: -2, y: 0, duration: 1.6, ease: "sine.inOut" }, T.maxai + 0.7);
+      lineIn("#c-resp", 11.5);
+      lineOut("#c-resp", 12.75);
+      lineIn("#c-cal", 12.9);
+      // whip pan hacia el embudo
+      tl.to("#chatwrap", { x: -1300, rotationY: 25, filter: "blur(22px)", duration: 0.35, ease: "power3.in" }, 13.72);
+      lineOut("#c-cal", 13.72, 0.3);
+
+      // ESCENA 5 — Embudo (pieza de Remotion)
+      tl.fromTo("#embwrap", { x: 1300, rotationY: -25, filter: "blur(22px)", scale: 0.86, y: 30 }, { x: 0, rotationY: -4, filter: "blur(0px)", scale: 0.88, y: 30, duration: 0.45 }, 13.9);
+      tl.to("#embwrap", { rotationY: 3, scale: 0.9, duration: 1.1, ease: "sine.inOut" }, 14.35);
+      lineIn("#c-org", 14.05);
+      lineOut("#c-org", 14.82, 0.25);
+      lineIn("#c-conv", 14.92);
+      lineOut("#c-conv", 15.75, 0.3);
+      // el embudo se aleja hacia su lugar en el tablero
+      tl.to("#embwrap", { scale: 0.4, x: 305, y: -500, rotationY: 0, opacity: 0, duration: 0.45, ease: "power3.inOut" }, 15.5);
+
+      // ESCENA 6 — vista total
+      tl.fromTo("#board", { rotationX: 32, rotationZ: -6, scale: 1.25, y: 0 }, { rotationX: 24, rotationZ: -3, scale: 0.98, y: -40, duration: 1.24, ease: "power2.out" }, T.vista);
+      tl.fromTo(["#b-chat", "#b-emb"], { opacity: 0, z: -400 }, { opacity: 1, z: 0, duration: 0.5, stagger: 0.08 }, T.vista + 0.05);
+      tl.fromTo("#mini-orb", { scale: 0 }, { scale: 1, duration: 0.5, ease: "back.out(2)" }, T.vista);
+      tl.fromTo(["#b-mod1", "#b-mod2", "#b-mod3"], { opacity: 0, y: 60 }, { opacity: 1, y: 0, duration: 0.45, stagger: 0.07 }, T.vista + 0.15);
+      ["bl1", "bl2", "bl3"].forEach((id, i) => {
+        const p = document.getElementById(id), L = p.getTotalLength();
+        p.setAttribute("stroke-dasharray", L); p.setAttribute("stroke-dashoffset", L);
+        tl.to("#" + id, { attr: { "stroke-dashoffset": 0 }, duration: 0.45, ease: "power2.out" }, T.vista + 0.2 + i * 0.08);
+        const proxy = { t: 0 };
+        const dotEl = document.getElementById("bd-" + id);
+        tl.fromTo(proxy, { t: 0 }, { t: 1, duration: 0.5, ease: "power1.inOut", repeat: 1, immediateRender: false, onUpdate: () => {
+          const pt = p.getPointAtLength(proxy.t * L); dotEl.setAttribute("cx", pt.x); dotEl.setAttribute("cy", pt.y);
+        } }, T.vista + 0.4 + i * 0.1);
+        tl.fromTo(dotEl, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.1 }, T.vista + 0.4 + i * 0.1);
+      });
+      lineIn("#h1", 15.75, 0.55);
+      lineIn("#h2", 16.45, 0.55);
+      // todo converge en un punto naranja
+      tl.to("#board", { scale: 0.05, opacity: 0, filter: "blur(8px)", duration: 0.5, ease: "power4.in" }, 16.85);
+      tl.fromTo("#point", { scale: 0, opacity: 0 }, { scale: 1.6, opacity: 1, duration: 0.45, ease: "power3.in" }, 16.9);
+      tl.to(["#h1", "#h2"], { opacity: 0, filter: "blur(14px)", duration: 0.25, ease: "power2.in" }, 17.2);
+
+      // ESCENA 7 — cierre (beat-locked: 17.40s)
+      tl.fromTo("#shock", { scale: 0.05, opacity: 1 }, { scale: 3.2, opacity: 0, duration: 1.0, ease: "expo.out" }, T.logo);
+      tl.fromTo("#endglow", { scale: 0.3, opacity: 1 }, { scale: 1, opacity: 0.7, duration: 1.2, ease: "expo.out" }, T.logo);
+      tl.fromTo("#logo", { scale: 1.3, opacity: 0, filter: "blur(20px)" }, { scale: 1, opacity: 1, filter: "blur(0px)", duration: 0.7 }, T.logo + 0.02);
+      tl.fromTo("#tag-text", { clipPath: "inset(0% 100% 0% 0%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration: 0.5, ease: "steps(18)" }, 17.75);
+      tl.fromTo("#cta", { scale: 0.6, opacity: 0, y: 30 }, { scale: 1, opacity: 1, y: 0, duration: 0.5, ease: "back.out(2.2)" }, 17.95);
+      tl.fromTo("#url", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 18.25);
+      tl.fromTo("#cta", { boxShadow: "0 0 60px rgba(244,123,32,0.45)" }, { boxShadow: "0 0 110px rgba(244,123,32,0.85)", duration: 0.4, yoyo: true, repeat: 1, ease: "sine.inOut", immediateRender: false }, 19.0);
+      // costura del loop: todo colapsa al punto inicial
+      tl.set("#endset", { transformOrigin: "540px 760px" }, 0);
+      tl.to("#endset", { scale: 0, opacity: 0, filter: "blur(10px)", duration: 0.22, ease: "power4.in" }, 19.78);
+      tl.to("#endglow", { opacity: 0, duration: 0.2 }, 19.8);
+      tl.fromTo("#enddot", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.18, ease: "power3.in" }, 19.82);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "titulo": "EMBUDO DE CONVERSIÓN",
+  "estado": "Automatizado",
+  "etapas": [
+    { "etiqueta": "01 · CAPTACIÓN", "nombre": "Meta Ads + Google Ads", "fase": "DEMANDA", "estilo": "claro" },
+    { "etiqueta": "02 · PRE-FILTRO IA", "nombre": "Max AI califica", "fase": "MENSAJE", "estilo": "ia" },
+    { "etiqueta": "03 · CONVERSIÓN", "nombre": "Lead calificado", "fase": "OPORTUNIDAD", "estilo": "verde" },
+    { "etiqueta": "04 · RESULTADO", "nombre": "Venta + Revenue", "fase": "CRECIMIENTO", "estilo": "oscuro" }
+  ]
+}

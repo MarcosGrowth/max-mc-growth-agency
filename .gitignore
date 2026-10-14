@@ -37,3 +37,11 @@ Thumbs.db
 
 # ── Node ──────────────────────────────────────────────────
 node_modules/
+
+# ── Estudio de video ──────────────────────────────────────
+video/remotion/out/
+video/audio/out/
+video/brag-output/draft.mp4
+video/brag-output/composition/.hyperframes/
+.hyperframes/
+.transcode-cache/

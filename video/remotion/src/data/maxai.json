@@ -1,0 +1,15 @@
+{
+  "leadId": "Lead #00482",
+  "mensajes": [
+    { "de": "lead", "texto": "Hola, quiero saber si tienen turnos esta semana." },
+    { "de": "max", "texto": "¡Hola! Sí, puedo ayudarte. ¿Buscás una consulta particular?" },
+    { "de": "lead", "texto": "Es para una cirugía. Tengo obra social." },
+    { "de": "max", "texto": "Perfecto. Tomo tus datos y te derivo con el equipo." }
+  ],
+  "metricas": [
+    { "nombre": "Intención", "valor": 92 },
+    { "nombre": "Fit comercial", "valor": 84 },
+    { "nombre": "Urgencia", "valor": 76 }
+  ],
+  "estadoFinal": "Lead guardado · listo para seguimiento"
+}
