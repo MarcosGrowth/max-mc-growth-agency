@@ -22,7 +22,7 @@ from fastapi.responses import PlainTextResponse, HTMLResponse, RedirectResponse,
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import DATABASE_URL, inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, marcar_lead_notificado, actualizar_info_lead, actualizar_nombre_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, actualizar_seguimiento_lead, actualizar_datos_oportunidad, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal, obtener_control_contacto, establecer_control_contacto, obtener_configuracion, guardar_configuracion
+from agent.memory import DATABASE_URL, inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, marcar_lead_notificado, marcar_revision_notificada, actualizar_info_lead, actualizar_nombre_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, actualizar_seguimiento_lead, actualizar_datos_oportunidad, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal, obtener_control_contacto, establecer_control_contacto, obtener_configuracion, guardar_configuracion
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado, notificar_lead_revision
 
