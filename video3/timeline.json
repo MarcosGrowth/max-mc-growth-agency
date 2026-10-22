@@ -1,0 +1,14 @@
+{
+  "_nota": "Tiempos del reel 3 (segundos). Voz, escenas y frases salen de acá.",
+  "duracion": 38.0,
+  "bpm": 90,
+  "lineas": { "a1": 0.3, "a2": 2.75, "a3": 4.9, "a4": 8.6, "a5": 12.5, "a6": 17.0, "a7": 21.85, "a8": 25.0, "a9": 32.4 },
+  "escenas": { "rebote": 4.6, "embudo": 8.4, "diagnostico": 16.6, "llamada": 24.6, "cierre": 32.0 },
+  "frases": [
+    { "linea": "a1", "desde": 0 }, { "linea": "a2", "desde": 0 }, { "linea": "a3", "desde": 0 }, { "linea": "a4", "desde": 0 },
+    { "linea": "a5", "desde": 0, "hasta": 6 }, { "linea": "a5", "desde": 6 },
+    { "linea": "a6", "desde": 0, "hasta": 4 }, { "linea": "a6", "desde": 4 }, { "linea": "a7", "desde": 0 },
+    { "linea": "a8", "desde": 0, "hasta": 3 }, { "linea": "a8", "desde": 3 }
+  ],
+  "acentos": ["anuncio", "cualquiera", "compren", "ventas", "entero", "compran", "diagnóstico", "escapan", "hablemos", "gratis"]
+}

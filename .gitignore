@@ -48,3 +48,6 @@ video/brag-output/composition/.hyperframes/
 video2/audio/out/*_raw.wav
 video2/draft_*.mp4
 video2/composition/.hyperframes/
+video3/audio/out/mix_raw.wav
+video3/draft.mp4
+video3/composition/.hyperframes/

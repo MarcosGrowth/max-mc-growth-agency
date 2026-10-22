@@ -6,6 +6,8 @@ import embudo from "./data/embudo.json";
 import { MetaObjetivo } from "./reel2/MetaObjetivo";
 import { Landing } from "./reel2/Landing";
 import { MaxAITareas } from "./reel2/MaxAITareas";
+import { Rebote } from "./reel3/Rebote";
+import { Embudo3 } from "./reel3/Embudo3";
 
 // Piezas de datos para el reel de MC Growth. Se renderizan con fondo transparente
 // y se insertan en la composición de Hyperframes. Para otro reel, cambiá los JSON de src/data.
@@ -20,6 +22,9 @@ export const RemotionRoot: React.FC = () => {
       <Composition id="R2-Objetivo" component={MetaObjetivo} durationInFrames={221} fps={30} width={1080} height={1920} />
       <Composition id="R2-Landing" component={Landing} durationInFrames={192} fps={30} width={1080} height={1920} />
       <Composition id="R2-MaxAI" component={MaxAITareas} durationInFrames={246} fps={30} width={1080} height={1920} />
+      {/* Reel 3 — "Que te compren" */}
+      <Composition id="R3-Rebote" component={Rebote} durationInFrames={114} fps={30} width={1080} height={1920} />
+      <Composition id="R3-Embudo" component={Embudo3} durationInFrames={246} fps={30} width={1080} height={1920} />
     </>
   );
 };

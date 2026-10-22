@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>MC Growth — Que te compren</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="assets/data.js"></script>
+    <style>
+      @font-face { font-family: "Geist"; src: url("assets/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; }
+      @font-face { font-family: "Geist"; src: url("assets/fonts/Geist-Italic.woff2") format("woff2"); font-weight: 100 900; font-style: italic; }
+      @font-face { font-family: "Geist Mono"; src: url("assets/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; }
+      :root { --bg: #09090b; --s1: #17181d; --s2: #0d0d10; --orange: #f47b20; --green: #1ac979; --text: #f5f6f8; --gray: #aeb4c3; --dim: #8a90a0; }
+      body { margin: 0; background: var(--bg); color: var(--text); font-family: "Geist", Arial, sans-serif; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+      .full { position: absolute; inset: 0; }
+      .clip { position: absolute; inset: 0; }
+      .mono { font-family: "Geist Mono", monospace; }
+      #grid { position: absolute; left: -200px; top: -200px; width: 1480px; height: 2320px;
+        background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px); background-size: 90px 90px; }
+      #glow { position: absolute; left: 40px; top: 160px; width: 1000px; height: 1000px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(244,123,32,0.26) 0%, rgba(244,123,32,0.07) 40%, rgba(244,123,32,0) 70%); }
+      #vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 80% 62% at 50% 42%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%); }
+      .vid { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+      /* frases: una por vez, se escriben con la voz */
+      #lines { position: absolute; left: 90px; width: 900px; top: 1085px; height: 170px; }
+      .line { position: absolute; left: 0; top: 0; width: 900px; height: 170px; display: flex; flex-wrap: wrap; align-content: flex-start; justify-content: center;
+        font-size: 58px; font-weight: 700; letter-spacing: -1.5px; line-height: 1.16; text-align: center; }
+      .line span { display: inline-block; margin: 0 0.13em; }
+      .line .acc { font-style: italic; font-weight: 800; color: var(--orange); }
+
+      /* escena 1: prompt + anuncio */
+      #prompt { position: absolute; left: 0; width: 1080px; text-align: center; top: 290px; font-family: "Geist Mono", monospace; font-size: 46px; color: var(--gray); white-space: nowrap; }
+      #prompt .p { color: var(--orange); }
+      #ad { position: absolute; left: 300px; top: 400px; width: 480px; height: 520px; box-sizing: border-box; border-radius: 28px; padding: 26px;
+        background: linear-gradient(180deg, #17181d, #0d0d10); border: 1.5px solid rgba(255,255,255,0.12); box-shadow: 0 40px 100px rgba(0,0,0,0.55); }
+      #ad .top { display: flex; align-items: center; gap: 14px; }
+      #ad .av { width: 46px; height: 46px; border-radius: 23px; background: linear-gradient(135deg, #ffb36f, #f47b20); }
+      #ad .img { margin-top: 20px; height: 230px; border-radius: 18px; background: radial-gradient(circle at 70% 35%, rgba(244,123,32,0.55), rgba(244,123,32,0.08) 55%), #1d1e24; position: relative; overflow: hidden; }
+      #ad .bar { height: 18px; border-radius: 9px; background: rgba(255,255,255,0.14); margin-top: 18px; }
+      #ad .cta { margin-top: 24px; height: 64px; border-radius: 14px; background: #2a2c34; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; color: var(--text); }
+      #strike { position: absolute; left: 240px; top: 560px; width: 600px; height: 200px; overflow: visible; }
+      #salesbar { position: absolute; left: 340px; top: 955px; width: 400px; }
+      #salesbar .t { font-family: "Geist Mono", monospace; font-size: 26px; letter-spacing: 4px; color: var(--gray); margin-bottom: 10px; }
+      #salesbar .b { height: 18px; border-radius: 9px; background: rgba(255,255,255,0.08); border: 2px solid rgba(255,255,255,0.08); }
+
+      /* escena 4: diagnóstico (tarjeta clara como el embudo del sitio) */
+      #diag { position: absolute; left: 130px; top: 390px; width: 820px; box-sizing: border-box; padding: 40px 44px 44px; border-radius: 36px; background: #f2f2f3; color: #0b0b0d;
+        box-shadow: 0 50px 140px rgba(0,0,0,0.55); }
+      #diag .hd { display: flex; justify-content: space-between; align-items: center; }
+      #diag .k { font-family: "Geist Mono", monospace; font-size: 28px; letter-spacing: 3px; color: #6e6e76; }
+      #diag .pill { font-family: "Geist Mono", monospace; font-size: 28px; color: #0b7a47; background: rgba(26,201,121,0.16); padding: 10px 20px; border-radius: 30px; }
+      #diag .ttl { font-size: 54px; font-weight: 800; letter-spacing: -1.5px; margin: 22px 0 26px; }
+      .row { display: flex; align-items: center; gap: 22px; padding: 22px 26px; border-radius: 20px; background: #fff; border: 2px solid #e2e2e5; margin-top: 14px; font-size: 36px; font-weight: 700; }
+      .row .ck { width: 46px; height: 46px; border-radius: 23px; background: var(--green); color: #0b0b0d; font-weight: 900; font-size: 28px; display: flex; align-items: center; justify-content: center; }
+      .row.esc { background: #0b0b0d; color: #fff; border-color: var(--orange); }
+      #circ { position: absolute; left: 110px; top: 905px; width: 860px; height: 140px; overflow: visible; }
+
+      /* escena 5: llamada */
+      #call { position: absolute; left: 170px; top: 360px; width: 740px; height: 680px; border-radius: 36px; overflow: hidden; background: #111;
+        box-shadow: 0 50px 140px rgba(0,0,0,0.6); }
+      #call img { position: absolute; left: 0; top: -30px; width: 740px; height: 740px; object-fit: cover; }
+      #call .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 62%, rgba(0,0,0,0.75) 100%); }
+      #call .live { position: absolute; left: 26px; top: 24px; display: flex; align-items: center; gap: 12px; font-family: "Geist Mono", monospace; font-size: 28px; letter-spacing: 2px; color: #fff;
+        background: rgba(0,0,0,0.5); padding: 10px 18px; border-radius: 30px; }
+      #call .live i { width: 14px; height: 14px; border-radius: 7px; background: var(--green); display: block; }
+      #call .timer { position: absolute; right: 26px; top: 24px; font-family: "Geist Mono", monospace; font-size: 28px; color: #fff; background: rgba(0,0,0,0.5); padding: 10px 18px; border-radius: 30px; }
+      #call .name { position: absolute; left: 30px; bottom: 96px; font-size: 32px; font-weight: 700; color: #fff; }
+      #call .flow { position: absolute; left: 30px; bottom: 28px; display: flex; gap: 10px; align-items: center; font-family: "Geist Mono", monospace; font-size: 28px; color: #fff; }
+      #call .flow b { font-weight: 500; background: rgba(255,255,255,0.14); border: 1.5px solid rgba(255,255,255,0.25); padding: 8px 14px; border-radius: 20px; }
+      #call .flow em { font-style: normal; color: var(--orange); }
+      #ring { position: absolute; left: 164px; top: 354px; width: 752px; height: 692px; border-radius: 42px; border: 6px solid var(--orange); box-sizing: border-box; }
+      .chip { position: absolute; top: 280px; font-family: "Geist Mono", monospace; font-size: 30px; letter-spacing: 2px; padding: 14px 26px; border-radius: 40px; white-space: nowrap; }
+
+      /* escena 6: cierre */
+      #dot { position: absolute; left: 490px; top: 600px; width: 100px; height: 100px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 80px rgba(244,123,32,0.8); }
+      #logo { position: absolute; left: 290px; top: 300px; width: 500px; }
+      #final { position: absolute; left: 0; width: 1080px; top: 540px; text-align: center; font-size: 132px; font-weight: 900; letter-spacing: -5px; line-height: 1; }
+      #final .acc { font-style: italic; color: var(--orange); }
+      #btn { position: absolute; left: 190px; top: 790px; width: 700px; height: 124px; border-radius: 22px; background: var(--orange); color: #09090b; font-size: 46px; font-weight: 800;
+        display: flex; align-items: center; justify-content: center; box-shadow: 0 0 70px rgba(244,123,32,0.5); }
+      #tap { position: absolute; left: 0; width: 1080px; top: 965px; text-align: center; font-size: 52px; font-weight: 800; }
+      #arrow { position: absolute; left: 480px; top: 1060px; width: 120px; height: 150px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="38">
+      <div class="full"><div id="grid"></div><div id="glow"></div></div>
+      <audio id="mix" src="assets/audio/mix.wav" data-start="0" data-duration="38" data-track-index="9" data-volume="1"></audio>
+
+      <!-- 1–2 · anuncio que cualquiera hace + personas que rebotan -->
+      <section id="s1" class="clip" data-start="0" data-duration="8.7" data-track-index="1">
+        <div id="prompt"><span class="p">$</span> <span id="ptxt"></span><span id="caret">_</span></div>
+        <div id="ad" data-layout-ignore>
+          <div class="top"><div class="av"></div><div><div style="font-size:26px; font-weight:700">Tu marca</div><div class="mono" style="font-size:19px; color:#8a90a0; letter-spacing:2px">PUBLICIDAD</div></div></div>
+          <div class="img" id="adimg"></div>
+          <div class="bar" id="adb1" style="width:88%"></div>
+          <div class="bar" id="adb2" style="width:62%"></div>
+          <div class="cta" id="adcta">Más información</div>
+        </div>
+        <svg id="strike" viewBox="0 0 600 200"><path id="strikep" d="M20 150 C 160 120, 300 90, 580 40" stroke="#FF4D4D" stroke-width="16" fill="none" stroke-linecap="round" /></svg>
+        <div id="salesbar" data-layout-ignore><div class="t">VENTAS</div><div class="b" id="salesb"></div></div>
+      </section>
+      <video id="vreb" class="vid" src="assets/clips/R3-Rebote.webm" muted playsinline data-start="4.6" data-duration="3.8" data-track-index="2"></video>
+
+      <!-- 3 · el sistema entero (Remotion) -->
+      <video id="vemb" class="vid" src="assets/clips/R3-Embudo.webm" muted playsinline data-start="8.4" data-duration="8.2" data-track-index="2"></video>
+
+      <!-- 4 · diagnóstico -->
+      <section id="s4" class="clip" data-start="16.5" data-duration="8.3" data-track-index="3">
+        <div id="diag">
+          <div class="hd"><span class="k">// TU DIAGNÓSTICO</span><span class="pill">● Gratis</span></div>
+          <div class="ttl">Diagnóstico antes de escala</div>
+          <div class="row" id="r1"><span class="ck" id="c1">✓</span>Tus anuncios</div>
+          <div class="row" id="r2"><span class="ck" id="c2">✓</span>Tu landing</div>
+          <div class="row" id="r3"><span class="ck" id="c3">✓</span>Cómo respondés</div>
+          <div class="row esc" id="r4"><span style="color:var(--orange)">→</span>Dónde se te escapan las ventas</div>
+        </div>
+        <svg id="circ" viewBox="0 0 860 170" preserveAspectRatio="none"><path id="circp" d="M90 30 C 300 -10, 700 0, 820 60 C 880 110, 760 165, 430 162 C 150 160, 10 140, 25 90 C 35 55, 110 30, 200 24" stroke="#F47B20" stroke-width="7" fill="none" stroke-linecap="round" /></svg>
+      </section>
+
+      <!-- 5 · llamada -->
+      <section id="s5" class="clip" data-start="24.5" data-duration="7.9" data-track-index="4">
+        <div id="ring"></div>
+        <div id="call">
+          <img src="assets/img/marcos.jpg" alt="Marcos" />
+          <div class="shade"></div>
+          <div class="live"><i></i>EN LLAMADA</div>
+          <div class="timer" id="timer">00:00</div>
+          <div class="name">Marcos · MC Growth</div>
+          <div class="flow" id="flow"><b>anuncios</b><em>→</em><b>landing</b><em>→</em><b>IA</b><em>→</em><b>CRM</b></div>
+        </div>
+        <div class="chip" id="chipG" style="left:250px; color:#09090b; background:var(--green)">GRATIS</div>
+        <div class="chip" id="chipS" style="left:470px; color:var(--text); background:#17181d; border:2px solid rgba(255,255,255,0.2)">SIN COMPROMISO</div>
+      </section>
+
+      <!-- 6 · cierre -->
+      <section id="s6" class="clip" data-start="31.9" data-duration="6.1" data-track-index="5">
+        <div id="dot"></div>
+        <img id="logo" src="assets/img/logo_alpha.png" />
+        <div id="final">Que te <span class="acc">compren.</span></div>
+        <div id="btn">Solicitar diagnóstico ↗</div>
+        <div id="tap">Tocá <span style="color:var(--orange)">«Más información»</span></div>
+        <svg id="arrow" viewBox="0 0 120 150"><path d="M60 10 V120 M18 82 L60 124 L102 82" stroke="#F47B20" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      </section>
+
+      <div id="lines" data-layout-allow-overlap data-layout-allow-overflow></div>
+      <div id="vignette"></div>
+    </div>
+
+    <script>
+      const D = window.R3, TL = D.tl, E = TL.escenas, L = TL.lineas, W = D.w;
+
+      // frases
+      const linesEl = document.getElementById("lines");
+      D.frases.forEach((f, i) => {
+        const el = document.createElement("div");
+        el.className = "line"; el.id = "ln" + i;
+        el.setAttribute("data-layout-allow-overlap", "");
+        el.innerHTML = f.words.map((w, j) => `<span id="w${i}_${j}" class="${w.a ? "acc" : ""}">${w.w}</span>`).join("");
+        linesEl.appendChild(el);
+      });
+
+      const tl = gsap.timeline({ paused: true, defaults: { ease: "expo.out" } });
+      tl.fromTo("#grid", { x: 0, y: 0 }, { x: -60, y: -240, duration: TL.duracion, ease: "none" }, 0);
+      tl.fromTo("#glow", { opacity: 0.25, scale: 0.85 }, { opacity: 0.6, scale: 1, duration: 4, ease: "sine.inOut" }, 0);
+
+      // las palabras aparecen cuando se dicen; la frase se va antes de la siguiente
+      D.frases.forEach((f, i) => {
+        f.words.forEach((w, j) => {
+          tl.fromTo(`#w${i}_${j}`, { opacity: 0, y: 22, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.35, ease: "power3.out" }, w.t);
+        });
+        tl.to("#ln" + i, { opacity: 0, y: -16, filter: "blur(6px)", duration: 0.2, ease: "power2.in" }, f.end - 0.2);
+      });
+
+      // ESCENA 1 — el prompt tipea y se arma el anuncio
+      const PROMPT = "lanzá una campaña";
+      const ptxt = document.getElementById("ptxt");
+      const typer = { n: 0 };
+      tl.fromTo("#prompt", { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "none" }, 0.0);
+      tl.fromTo(typer, { n: 0 }, { n: PROMPT.length, duration: 0.7, ease: "none", onUpdate: () => { ptxt.textContent = PROMPT.slice(0, Math.round(typer.n)); } }, 0.1);
+      tl.fromTo("#caret", { opacity: 1 }, { opacity: 0, duration: 0.25, ease: "steps(1)", yoyo: true, repeat: 15 }, 0.1);
+      tl.fromTo("#ad", { opacity: 0, y: 40, scale: 0.94 }, { opacity: 1, y: 0, scale: 1, duration: 0.6 }, 0.75);
+      tl.fromTo("#adimg", { clipPath: "inset(0% 100% 0% 0%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration: 0.45, ease: "power3.out" }, 0.95);
+      tl.fromTo(["#adb1", "#adb2"], { scaleX: 0, transformOrigin: "0% 50%" }, { scaleX: 1, duration: 0.4, stagger: 0.1, ease: "power3.out" }, 1.2);
+      tl.fromTo("#adcta", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.35 }, 1.45);
+      // "Eso ya lo hace cualquiera": tachado a mano
+      const sp = document.getElementById("strikep"), sl = sp.getTotalLength();
+      sp.setAttribute("stroke-dasharray", sl); sp.setAttribute("stroke-dashoffset", sl);
+      tl.to("#strikep", { attr: { "stroke-dashoffset": 0 }, duration: 0.35, ease: "power2.out" }, W.a2.cualquiera);
+      tl.to("#prompt", { opacity: 0, y: -20, duration: 0.3, ease: "power2.in" }, E.rebote - 0.3);
+      tl.to("#strike", { opacity: 0, duration: 0.3, ease: "none" }, E.rebote);
+      // ESCENA 2 — personas que rebotan; las ventas siguen vacías
+      tl.to("#ad", { filter: "saturate(0.4)", duration: 0.6, ease: "none" }, E.rebote);
+      tl.fromTo("#salesbar", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45 }, E.rebote + 0.3);
+      tl.fromTo("#salesb", { borderColor: "rgba(255,255,255,0.08)" }, { borderColor: "rgba(255,77,77,0.9)", duration: 0.18, yoyo: true, repeat: 3, ease: "none", immediateRender: false }, W.a3.compren);
+      // el anuncio cae dentro del embudo
+      tl.to("#ad", { y: -60, scale: 0.35, opacity: 0, duration: 0.5, ease: "power3.in" }, E.embudo - 0.35);
+      tl.to("#salesbar", { opacity: 0, y: 30, duration: 0.3, ease: "power2.in" }, E.embudo - 0.3);
+      tl.to("#glow", { opacity: 0.9, scale: 1.1, duration: 1 }, E.embudo);
+
+      // ESCENA 4 — diagnóstico
+      tl.fromTo("#diag", { opacity: 0, y: 80, scale: 0.92, filter: "blur(10px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.7 }, E.diagnostico);
+      tl.set(["#r1", "#r2", "#r3"], { opacity: 0.35 }, 0);
+      [["#r1", "#c1", W.a6.anuncios], ["#r2", "#c2", W.a6.landing], ["#r3", "#c3", W.a6["respondés"]]].forEach(([r, c, t]) => {
+        tl.set(c, { scale: 0 }, 0);
+        tl.to(r, { opacity: 1, borderColor: "#1ac979", duration: 0.2, ease: "none" }, t);
+        tl.to(c, { scale: 1, duration: 0.35, ease: "back.out(3)" }, t);
+      });
+      tl.fromTo("#r4", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.45 }, W.a7["dónde"] - 0.1);
+      const cp = document.getElementById("circp"), cl = cp.getTotalLength();
+      cp.setAttribute("stroke-dasharray", cl); cp.setAttribute("stroke-dashoffset", cl);
+      tl.to("#circp", { attr: { "stroke-dashoffset": 0 }, duration: 0.6, ease: "power2.inOut" }, W.a7.escapan);
+      tl.to("#diag", { scale: 0.9, opacity: 0, y: -40, filter: "blur(10px)", duration: 0.4, ease: "power3.in" }, E.llamada - 0.35);
+      tl.to("#circ", { opacity: 0, duration: 0.3, ease: "none" }, E.llamada - 0.35);
+
+      // ESCENA 5 — la llamada
+      tl.fromTo("#call", { opacity: 0, scale: 0.85, y: 60 }, { opacity: 1, scale: 1, y: 0, duration: 0.7 }, E.llamada);
+      tl.fromTo("#call img", { scale: 1.08 }, { scale: 1.0, duration: 7.4, ease: "none" }, E.llamada);
+      tl.fromTo("#flow", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45 }, W.a8.hablemos);
+      tl.fromTo("#chipG", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.5)" }, W.a8.gratis);
+      tl.fromTo("#chipS", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2.5)" }, W.a8.sin);
+      // temporizador y aro de "hablando" sincronizado con la voz
+      const timer = document.getElementById("timer"), ring = document.getElementById("ring");
+      const clock = { t: 0 };
+      tl.fromTo(clock, { t: E.llamada }, { t: E.cierre, duration: E.cierre - E.llamada, ease: "none", onUpdate: () => {
+        const el = Math.max(0, Math.floor(clock.t - E.llamada));
+        timer.textContent = "00:" + String(el).padStart(2, "0");
+        const v = D.env[Math.min(D.env.length - 1, Math.round(clock.t * 30))] || 0;
+        ring.style.opacity = String(Math.min(1, v * 1.6));
+        ring.style.boxShadow = `0 0 ${20 + v * 60}px rgba(244,123,32,${0.3 + v * 0.5})`;
+      } }, E.llamada);
+      tl.set("#ring", { opacity: 0 }, 0);
+
+      // ESCENA 6 — la llamada se cierra en un punto naranja → "Que te compren."
+      tl.set("#call", { transformOrigin: "50% 50%" }, 0);
+      tl.to("#call", { scale: 0.12, borderRadius: "400px", opacity: 0, duration: 0.45, ease: "power3.in" }, E.cierre - 0.15);
+      tl.to(["#ring", "#chipG", "#chipS"], { opacity: 0, duration: 0.25, ease: "none" }, E.cierre - 0.15);
+      tl.fromTo("#dot", { scale: 0 }, { scale: 1, duration: 0.3, ease: "back.out(2)" }, E.cierre + 0.2);
+      tl.to("#dot", { scale: 14, opacity: 0, duration: 0.9, ease: "power3.out" }, L.a9 - 0.1);
+      tl.fromTo("#final", { opacity: 0, scale: 1.25, filter: "blur(16px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.6 }, L.a9);
+      tl.fromTo("#logo", { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.5 }, L.a9 + 0.6);
+      tl.fromTo("#btn", { opacity: 0, scale: 0.6, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: "back.out(2.2)" }, L.a9 + 1.2);
+      tl.fromTo("#tap", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.45 }, L.a9 + 1.8);
+      tl.fromTo("#arrow", { opacity: 0, y: -30 }, { opacity: 1, y: 0, duration: 0.4 }, L.a9 + 2.0);
+      tl.fromTo("#arrow", { y: 0 }, { y: 28, duration: 0.42, ease: "sine.inOut", yoyo: true, repeat: 6, immediateRender: false }, L.a9 + 2.45);
+      tl.fromTo("#btn", { boxShadow: "0 0 70px rgba(244,123,32,0.5)" }, { boxShadow: "0 0 120px rgba(244,123,32,0.9)", duration: 0.6, yoyo: true, repeat: 3, ease: "sine.inOut", immediateRender: false }, L.a9 + 1.8);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
