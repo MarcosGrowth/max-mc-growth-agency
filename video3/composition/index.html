@@ -74,14 +74,16 @@
       .chip { position: absolute; top: 280px; font-family: "Geist Mono", monospace; font-size: 30px; letter-spacing: 2px; padding: 14px 26px; border-radius: 40px; white-space: nowrap; }
 
       /* escena 6: cierre */
-      #dot { position: absolute; left: 490px; top: 600px; width: 100px; height: 100px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 80px rgba(244,123,32,0.8); }
-      #logo { position: absolute; left: 290px; top: 300px; width: 500px; }
-      #final { position: absolute; left: 0; width: 1080px; top: 540px; text-align: center; font-size: 132px; font-weight: 900; letter-spacing: -5px; line-height: 1; }
+      #disc { position: absolute; left: 360px; top: 400px; width: 360px; height: 360px; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 40% 35%, #ff9a4d, #f47b20 60%, #b9500a); box-shadow: 0 0 90px rgba(244,123,32,0.6); }
+      #thumb { position: absolute; left: 25px; top: 40px; width: 310px; }
+      #pres { position: absolute; left: 765px; top: 470px; height: 600px; }
+      #logo { position: absolute; left: 380px; top: 278px; width: 320px; }
+      #final { position: absolute; left: 0; width: 1080px; top: 790px; text-align: center; font-size: 120px; font-weight: 900; letter-spacing: -5px; line-height: 1; }
       #final .acc { font-style: italic; color: var(--orange); }
-      #btn { position: absolute; left: 190px; top: 790px; width: 700px; height: 124px; border-radius: 22px; background: var(--orange); color: #09090b; font-size: 46px; font-weight: 800;
+      #btn { position: absolute; left: 190px; top: 950px; width: 700px; height: 112px; border-radius: 22px; background: var(--orange); color: #09090b; font-size: 46px; font-weight: 800;
         display: flex; align-items: center; justify-content: center; box-shadow: 0 0 70px rgba(244,123,32,0.5); }
-      #tap { position: absolute; left: 0; width: 1080px; top: 965px; text-align: center; font-size: 52px; font-weight: 800; }
-      #arrow { position: absolute; left: 480px; top: 1060px; width: 120px; height: 150px; }
+      #tap { position: absolute; left: 0; width: 1080px; top: 1092px; text-align: center; font-size: 48px; font-weight: 800; }
+      #arrow { position: absolute; left: 495px; top: 1160px; width: 90px; height: 112px; }
     </style>
   </head>
   <body>
@@ -105,6 +107,7 @@
       <video id="vreb" class="vid" src="assets/clips/R3-Rebote.webm" muted playsinline data-start="4.6" data-duration="3.8" data-track-index="2"></video>
 
       <!-- 3 · el sistema entero (Remotion) -->
+      <section id="s3" class="clip" data-start="8.4" data-duration="8.3" data-track-index="6"><img id="pres" src="assets/img/presentador.png" alt="Personaje de Marcos señalando el embudo" /></section>
       <video id="vemb" class="vid" src="assets/clips/R3-Embudo.webm" muted playsinline data-start="8.4" data-duration="8.2" data-track-index="2"></video>
 
       <!-- 4 · diagnóstico -->
@@ -124,7 +127,7 @@
       <section id="s5" class="clip" data-start="24.5" data-duration="7.9" data-track-index="4">
         <div id="ring"></div>
         <div id="call">
-          <img src="assets/img/marcos.jpg" alt="Marcos" />
+          <img src="assets/img/llamada.jpg" alt="Personaje de Marcos saludando" />
           <div class="shade"></div>
           <div class="live"><i></i>EN LLAMADA</div>
           <div class="timer" id="timer">00:00</div>
@@ -137,7 +140,7 @@
 
       <!-- 6 · cierre -->
       <section id="s6" class="clip" data-start="31.9" data-duration="6.1" data-track-index="5">
-        <div id="dot"></div>
+        <div id="disc"><img id="thumb" src="assets/img/pulgar.png" alt="Personaje con pulgar arriba" /></div>
         <img id="logo" src="assets/img/logo_alpha.png" />
         <div id="final">Que te <span class="acc">compren.</span></div>
         <div id="btn">Solicitar diagnóstico ↗</div>
@@ -200,6 +203,11 @@
       tl.to("#salesbar", { opacity: 0, y: 30, duration: 0.3, ease: "power2.in" }, E.embudo - 0.3);
       tl.to("#glow", { opacity: 0.9, scale: 1.1, duration: 1 }, E.embudo);
 
+      // ESCENA 3 — el presentador entra, señala el embudo y respira
+      tl.fromTo("#pres", { opacity: 0, x: 260 }, { opacity: 1, x: 0, duration: 0.8, ease: "back.out(1.4)" }, L.a4);
+      tl.fromTo("#pres", { scaleY: 1 }, { scaleY: 1.012, duration: 1.1, ease: "sine.inOut", yoyo: true, repeat: 5, transformOrigin: "50% 100%", immediateRender: false }, L.a4 + 0.8);
+      tl.to("#pres", { x: 300, opacity: 0, duration: 0.4, ease: "power3.in" }, E.diagnostico - 0.35);
+
       // ESCENA 4 — diagnóstico
       tl.fromTo("#diag", { opacity: 0, y: 80, scale: 0.92, filter: "blur(10px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.7 }, E.diagnostico);
       tl.set(["#r1", "#r2", "#r3"], { opacity: 0.35 }, 0);
@@ -237,8 +245,9 @@
       tl.set("#call", { transformOrigin: "50% 50%" }, 0);
       tl.to("#call", { scale: 0.12, borderRadius: "400px", opacity: 0, duration: 0.45, ease: "power3.in" }, E.cierre - 0.15);
       tl.to(["#ring", "#chipG", "#chipS"], { opacity: 0, duration: 0.25, ease: "none" }, E.cierre - 0.15);
-      tl.fromTo("#dot", { scale: 0 }, { scale: 1, duration: 0.3, ease: "back.out(2)" }, E.cierre + 0.2);
-      tl.to("#dot", { scale: 14, opacity: 0, duration: 0.9, ease: "power3.out" }, L.a9 - 0.1);
+      tl.fromTo("#disc", { scale: 0 }, { scale: 1, duration: 0.6, ease: "back.out(1.8)" }, E.cierre + 0.2);
+      tl.fromTo("#thumb", { y: 260 }, { y: 0, duration: 0.6, ease: "back.out(1.6)" }, L.a9 - 0.2);
+      tl.fromTo("#thumb", { rotation: 0 }, { rotation: -3, duration: 0.5, ease: "sine.inOut", yoyo: true, repeat: 5, immediateRender: false, transformOrigin: "50% 100%" }, L.a9 + 0.6);
       tl.fromTo("#final", { opacity: 0, scale: 1.25, filter: "blur(16px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.6 }, L.a9);
       tl.fromTo("#logo", { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.5 }, L.a9 + 0.6);
       tl.fromTo("#btn", { opacity: 0, scale: 0.6, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: "back.out(2.2)" }, L.a9 + 1.2);

@@ -7,12 +7,12 @@ import { FPS, mulberry32, tw } from "./shared";
 
 const L5 = 12.5 - 8.4; // la línea a5 empieza 4.1 s después del inicio de este clip
 const ETAPAS = [
-  { n: "TE VEN", s: "Meta Ads + Google Ads", w0: 900, w1: 780, at: () => L5 + tw("a5", "ven") },
-  { n: "CONSULTAN", s: "Landing", w0: 760, w1: 640, at: () => L5 + tw("a5", "ven") + 0.25 },
-  { n: "MAX AI CALIFICA", s: "Inteligencia artificial", w0: 620, w1: 500, at: () => L5 + tw("a5", "hasta") },
-  { n: "TE COMPRAN", s: "CRM + seguimiento", w0: 480, w1: 360, at: () => L5 + tw("a5", "compran") },
+  { n: "TE VEN", s: "Meta Ads + Google Ads", w0: 740, w1: 640, at: () => L5 + tw("a5", "ven") },
+  { n: "CONSULTAN", s: "Landing", w0: 620, w1: 520, at: () => L5 + tw("a5", "ven") + 0.25 },
+  { n: "MAX AI CALIFICA", s: "Inteligencia artificial", w0: 510, w1: 410, at: () => L5 + tw("a5", "hasta") },
+  { n: "TE COMPRAN", s: "CRM + seguimiento", w0: 395, w1: 300, at: () => L5 + tw("a5", "compran") },
 ];
-const TOP = 380, BAND = 120, GAP = 22, CX = 540;
+const TOP = 380, BAND = 120, GAP = 22, CX = 420; // el embudo deja lugar al presentador a la derecha
 const bandY = (i: number) => TOP + i * (BAND + GAP);
 const BOTTOM = bandY(3) + BAND;
 const BAR_Y = BOTTOM + 60;
@@ -23,7 +23,7 @@ const widthAt = (y: number) => {
     const a = bandY(i), b = a + BAND + GAP;
     if (y < b) return ETAPAS[i].w0 + (ETAPAS[i].w1 - ETAPAS[i].w0) * Math.max(0, Math.min(1, (y - a) / BAND));
   }
-  return 340;
+  return 300;
 };
 
 const rnd = mulberry32(517);
@@ -78,7 +78,7 @@ export const Embudo3: React.FC = () => {
         })}
       </svg>
       {/* barra de ventas: se llena con las personas que llegan (sin números) */}
-      <div style={{ position: "absolute", left: 240, top: BAR_Y, width: 600, opacity: prog(f, 10, 12) }}>
+      <div style={{ position: "absolute", left: 120, top: BAR_Y, width: 600, opacity: prog(f, 10, 12) }}>
         <div style={{ display: "flex", justifyContent: "space-between", fontFamily: MONO, fontSize: 28, letterSpacing: 4, color: "#AEB4C3", marginBottom: 12 }}>
           <span>VENTAS</span>
         </div>
