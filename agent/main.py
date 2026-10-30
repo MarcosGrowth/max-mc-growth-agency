@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 from agent.brain import generar_respuesta, extraer_info_lead
 from agent.memory import DATABASE_URL, inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, marcar_lead_notificado, marcar_revision_notificada, actualizar_info_lead, actualizar_nombre_lead, obtener_leads, obtener_conversacion, obtener_conversaciones, obtener_todos_los_mensajes, marcar_lead_cerrado, marcar_lead_descartado, cambiar_estado_lead, actualizar_seguimiento_lead, actualizar_datos_oportunidad, eliminar_lead, obtener_canal, obtener_canales, guardar_canal, alternar_canal, obtener_control_contacto, establecer_control_contacto, obtener_configuracion, guardar_configuracion
 from agent.providers import obtener_proveedor
-from agent.telegram import notificar_lead_calificado, notificar_lead_revision
+from agent.telegram import notificar_lead_calificado, notificar_lead_revision, notificar_nuevo_mensaje
 
 load_dotenv()
 
@@ -178,6 +178,10 @@ async def webhook_handler(request: Request):
                 datos_existentes = next((l for l in await obtener_leads() if l["telefono"] == msg.telefono), None)
                 if datos_existentes and datos_existentes.get("nombre") in {"", "No indicó"}:
                     await actualizar_nombre_lead(msg.telefono, msg.nombre_contacto)
+
+            # Avisar por Telegram que alguien escribió, sin esperar a que califique —
+            # así el equipo se entera aunque Max esté pausado para ese contacto
+            await notificar_nuevo_mensaje(msg.telefono, msg.texto, msg.nombre_contacto, nuevo_contacto)
 
             control = await obtener_control_contacto(msg.telefono)
             if not control["bot_activo"]:

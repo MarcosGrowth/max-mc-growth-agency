@@ -97,6 +97,46 @@ async def notificar_lead_revision(telefono: str, info: dict, motivo: str = "Caso
         return False
 
 
+async def notificar_nuevo_mensaje(telefono: str, mensaje: str, nombre: str = "", es_primer_mensaje: bool = False) -> bool:
+    """
+    Avisa a Telegram cada vez que alguien le escribe a Max, calificado o no.
+    Pensado como notificación rápida mientras no hay otro canal de atención en vivo.
+
+    Args:
+        telefono: Número del contacto
+        mensaje: Texto que mandó
+        nombre: Nombre del contacto si ya se conoce (perfil de Meta o dato guardado)
+        es_primer_mensaje: True si es la primera vez que este número escribe
+    """
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logger.warning("TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados — notificación omitida")
+        return False
+
+    telefono_limpio = telefono.replace("@s.whatsapp.net", "").replace("@c.us", "")
+    texto_corto = mensaje if len(mensaje) <= 300 else mensaje[:300] + "…"
+    encabezado = "💬 *NUEVO CONTACTO — MC Growth Agency*" if es_primer_mensaje else "💬 *Nuevo mensaje — MC Growth Agency*"
+    linea_nombre = f"👤 *Nombre:* {nombre}\n" if nombre else ""
+
+    mensaje_telegram = (
+        f"{encabezado}\n\n"
+        f"📱 *WhatsApp:* +{telefono_limpio}\n"
+        f"{linea_nombre}"
+        f"🗨️ *Dice:* {texto_corto}\n"
+        f"🕐 *Hora:* {_hora_actual()}"
+    )
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": mensaje_telegram, "parse_mode": "Markdown"})
+            if r.status_code != 200:
+                logger.error(f"Error Telegram (nuevo mensaje): {r.status_code} — {r.text}")
+            return r.status_code == 200
+    except Exception as e:
+        logger.error(f"Error enviando notificacion Telegram (nuevo mensaje): {e}")
+        return False
+
+
 def _hora_actual() -> str:
     """Retorna la hora actual formateada."""
     from datetime import datetime
