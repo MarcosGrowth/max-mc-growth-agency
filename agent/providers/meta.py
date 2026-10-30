@@ -39,12 +39,15 @@ class ProveedorMeta(ProveedorWhatsApp):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
                 for msg in value.get("messages", []):
+                    plataforma, campana = self._extraer_origen(msg)
                     if msg.get("type") == "text":
                         mensajes.append(MensajeEntrante(
                             telefono=msg.get("from", ""),
                             texto=msg.get("text", {}).get("body", ""),
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,
+                            plataforma=plataforma,
+                            campana=campana,
                         ))
                     elif msg.get("type") == "audio":
                         # Audio recibido — por ahora lo ignoramos con mensaje amigable
@@ -53,8 +56,34 @@ class ProveedorMeta(ProveedorWhatsApp):
                             texto="[El usuario envió un audio]",
                             mensaje_id=msg.get("id", ""),
                             es_propio=False,
+                            plataforma=plataforma,
+                            campana=campana,
                         ))
         return mensajes
+
+    def _extraer_origen(self, msg: dict) -> tuple[str, str]:
+        """
+        Lee el objeto 'referral' que Meta manda cuando el mensaje viene de un
+        anuncio "Click to WhatsApp" (Facebook o Instagram) o de un posteo.
+        Si no viene (mensaje directo, sin anuncio de por medio), usa los
+        valores por defecto de MensajeEntrante.
+
+        Nota: Meta no manda el nombre de la campaña como tal, solo el
+        anuncio/post de origen. Para ver el nombre real de la campaña hay
+        que cruzar el source_id contra el Ads Manager.
+        """
+        referral = msg.get("referral")
+        if not referral:
+            return "WhatsApp directo", "No aplica"
+
+        source_type = referral.get("source_type", "ad")  # "ad" o "post"
+        es_instagram = "instagram" in (referral.get("source_url") or "").lower()
+        plataforma = f"Instagram ({source_type})" if es_instagram else f"Facebook ({source_type})"
+
+        partes = [referral.get("headline"), referral.get("source_id")]
+        campana = " — ".join(p for p in partes if p) or referral.get("source_url") or "Sin identificar"
+
+        return plataforma, campana
 
     async def enviar_mensaje(self, telefono: str, mensaje: str) -> bool:
         """Envía mensaje via Meta WhatsApp Cloud API."""

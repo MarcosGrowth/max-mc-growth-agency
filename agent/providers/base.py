@@ -18,6 +18,10 @@ class MensajeEntrante:
     texto: str          # Contenido del mensaje
     mensaje_id: str     # ID único del mensaje
     es_propio: bool     # True si lo envió el agente (se ignora)
+    # De dónde vino el contacto — solo Meta lo informa (anuncios "Click to WhatsApp").
+    # Si el proveedor no lo sabe, queda en estos valores por defecto.
+    plataforma: str = "WhatsApp directo"
+    campana: str = "No aplica"
 
 
 class ProveedorWhatsApp(ABC):

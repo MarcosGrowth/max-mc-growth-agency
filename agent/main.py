@@ -14,7 +14,7 @@ from fastapi.responses import PlainTextResponse, HTMLResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_contacto, actualizar_actividad, registrar_lead, actualizar_info_lead, obtener_leads, marcar_lead_cerrado, marcar_lead_descartado, eliminar_lead
+from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_contacto, actualizar_actividad, registrar_lead, actualizar_info_lead, obtener_leads, obtener_origen, marcar_lead_cerrado, marcar_lead_descartado, eliminar_lead
 from agent.providers import obtener_proveedor
 from agent.telegram import notificar_lead_calificado, notificar_nuevo_mensaje
 
@@ -107,11 +107,11 @@ async def webhook_handler(request: Request):
 
             # Registrar al contacto (calificado o no) y su actividad —
             # así aparece en el dashboard apenas escribe, no solo cuando califica
-            await registrar_contacto(msg.telefono)
+            es_primer_mensaje = await registrar_contacto(msg.telefono, msg.plataforma, msg.campana)
             await actualizar_actividad(msg.telefono, msg.texto)
 
             # Notificar por Telegram que alguien escribió, sin esperar a que califique
-            await notificar_nuevo_mensaje(msg.telefono, msg.texto)
+            await notificar_nuevo_mensaje(msg.telefono, msg.texto, msg.plataforma, msg.campana, es_primer_mensaje)
 
             # Obtener historial ANTES de guardar el mensaje actual
             # (evita duplicados — brain.py agrega el mensaje al construir los mensajes)
@@ -148,7 +148,8 @@ async def webhook_handler(request: Request):
                         presupuesto=info.get("presupuesto", "No indicó"),
                         interes=info.get("interes", "No indicó"),
                     )
-                    await notificar_lead_calificado(msg.telefono, info)
+                    plataforma_origen, campana_origen = await obtener_origen(msg.telefono)
+                    await notificar_lead_calificado(msg.telefono, info, plataforma_origen, campana_origen)
                     logger.info(f"Lead calificado notificado: {msg.telefono}")
 
         return {"status": "ok"}
@@ -231,6 +232,8 @@ async def dashboard():
 
         ultimo_mensaje = lead.get("ultimo_mensaje") or "—"
         hace = _tiempo_relativo(lead["ultima_actividad"])
+        plataforma = lead.get("plataforma", "WhatsApp directo")
+        campana = lead.get("campana", "No aplica")
 
         if lead["calificado"]:
             calificado_badge = '<span style="background:#22c55e;color:white;padding:2px 8px;border-radius:10px;font-size:11px;">✓ Calificado</span>'
@@ -265,6 +268,7 @@ async def dashboard():
         <tr>
           <td style="padding:12px 16px;">+{tel}<br><span style="color:#64748b;font-size:12px;">{nombre}</span></td>
           <td style="padding:12px 16px;">{calificado_badge}</td>
+          <td style="padding:12px 16px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{campana}">{plataforma}<br><span style="color:#64748b;font-size:12px;">{campana}</span></td>
           <td style="padding:12px 16px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{ultimo_mensaje}">{ultimo_mensaje}<br><span style="color:#64748b;font-size:12px;">{hace}</span></td>
           <td style="padding:12px 16px;">{rubro}</td>
           <td style="padding:12px 16px;">{presupuesto}</td>
@@ -314,8 +318,8 @@ async def dashboard():
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>WhatsApp</th><th>Calificado</th><th>Último mensaje</th><th>Rubro</th><th>Presupuesto ads</th><th>Interes</th><th>Estado</th><th>Acciones</th></tr></thead>
-      <tbody>{filas if filas else '<tr><td colspan="8" style="padding:32px;text-align:center;color:#64748b;">Sin contactos aun. Max esta listo para atender.</td></tr>'}</tbody>
+      <thead><tr><th>WhatsApp</th><th>Calificado</th><th>Origen</th><th>Último mensaje</th><th>Rubro</th><th>Presupuesto ads</th><th>Interes</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody>{filas if filas else '<tr><td colspan="9" style="padding:32px;text-align:center;color:#64748b;">Sin contactos aun. Max esta listo para atender.</td></tr>'}</tbody>
     </table>
   </div>
   <p class="refresh">Ultima actualizacion: {_tiempo_relativo(leads[0]["ultima_actividad"]) if leads else "—"} · <a href="/dashboard">Actualizar</a></p>

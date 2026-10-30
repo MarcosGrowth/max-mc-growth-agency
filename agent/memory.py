@@ -60,6 +60,9 @@ class Lead(Base):
     ultimo_mensaje: Mapped[str] = mapped_column(Text, default="")
     ultima_actividad: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Origen del contacto — de qué plataforma y campaña/anuncio vino (solo Meta lo informa)
+    plataforma: Mapped[str] = mapped_column(String(100), default="WhatsApp directo")
+    campana: Mapped[str] = mapped_column(Text, default="No aplica")
 
 
 async def inicializar_db():
@@ -93,6 +96,12 @@ def _migrar_columnas_nuevas(conn):
     if "ultima_actividad" not in columnas_existentes:
         conn.execute(text("ALTER TABLE leads ADD COLUMN ultima_actividad TIMESTAMP"))
         conn.execute(text("UPDATE leads SET ultima_actividad = timestamp WHERE ultima_actividad IS NULL"))
+
+    if "plataforma" not in columnas_existentes:
+        conn.execute(text("ALTER TABLE leads ADD COLUMN plataforma VARCHAR(100) DEFAULT 'WhatsApp directo'"))
+
+    if "campana" not in columnas_existentes:
+        conn.execute(text("ALTER TABLE leads ADD COLUMN campana TEXT DEFAULT 'No aplica'"))
 
 
 async def guardar_mensaje(telefono: str, role: str, content: str):
@@ -145,10 +154,11 @@ async def obtener_historial(telefono: str, limite: int = 20) -> list[dict]:
         ]
 
 
-async def registrar_contacto(telefono: str) -> bool:
+async def registrar_contacto(telefono: str, plataforma: str = "WhatsApp directo", campana: str = "No aplica") -> bool:
     """
     Registra a CUALQUIER persona que le escribe a Max, calificada o no.
-    Si ya existe, no hace nada (no pisa sus datos).
+    Si ya existe, no hace nada (no pisa ni su origen ni sus datos) — el origen
+    solo se conoce en el primer mensaje, cuando viene de un anuncio.
 
     Returns:
         True si es la primera vez que este número escribe
@@ -161,7 +171,15 @@ async def registrar_contacto(telefono: str) -> bool:
         if existente:
             return False  # Ya estaba registrado
 
-        contacto = Lead(telefono=telefono, calificado=False, notificado=False, cerrado=False, descartado=False)
+        contacto = Lead(
+            telefono=telefono,
+            calificado=False,
+            notificado=False,
+            cerrado=False,
+            descartado=False,
+            plataforma=plataforma,
+            campana=campana,
+        )
         session.add(contacto)
         await session.commit()
         return True
@@ -177,6 +195,17 @@ async def actualizar_actividad(telefono: str, ultimo_mensaje: str):
             contacto.ultimo_mensaje = ultimo_mensaje
             contacto.ultima_actividad = datetime.utcnow()
             await session.commit()
+
+
+async def obtener_origen(telefono: str) -> tuple[str, str]:
+    """Devuelve (plataforma, campaña) guardadas del contacto — del primer mensaje, no del actual."""
+    async with async_session() as session:
+        query = select(Lead).where(Lead.telefono == telefono)
+        result = await session.execute(query)
+        contacto = result.scalar_one_or_none()
+        if contacto:
+            return contacto.plataforma, contacto.campana
+        return "WhatsApp directo", "No aplica"
 
 
 async def registrar_lead(telefono: str) -> bool:
@@ -288,6 +317,8 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "ultimo_mensaje": l.ultimo_mensaje,
                 "ultima_actividad": l.ultima_actividad.isoformat(),
                 "timestamp": l.timestamp.isoformat(),
+                "plataforma": l.plataforma,
+                "campana": l.campana,
             }
             for l in leads
         ]

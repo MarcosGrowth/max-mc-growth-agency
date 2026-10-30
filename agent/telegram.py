@@ -13,13 +13,15 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
-async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
+async def notificar_lead_calificado(telefono: str, info: dict, plataforma: str = "WhatsApp directo", campana: str = "No aplica") -> bool:
     """
     Envía una notificación a Telegram cuando Max califica un lead.
 
     Args:
         telefono: Número del prospecto
         info: Dict con nombre, rubro, presupuesto, interes extraídos por Claude
+        plataforma: De dónde vino el contacto (Meta Ads, WhatsApp directo, etc.)
+        campana: Anuncio/campaña de origen, si vino de un anuncio
 
     Returns:
         True si la notificación fue enviada exitosamente
@@ -35,6 +37,8 @@ async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
     presupuesto = info.get("presupuesto", "No indicó")
     interes = info.get("interes", "No indicó")
 
+    linea_origen = f"🌐 *Origen:* {plataforma} — {campana}\n" if plataforma != "WhatsApp directo" else ""
+
     mensaje = (
         "🔥 *LEAD CALIFICADO — MC Growth Agency*\n\n"
         f"📱 *WhatsApp:* +{telefono_limpio}\n"
@@ -42,6 +46,7 @@ async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
         f"🏢 *Rubro:* {rubro}\n"
         f"💰 *Presupuesto en ads:* {presupuesto}\n"
         f"🎯 *Interés:* {interes}\n"
+        f"{linea_origen}"
         f"🕐 *Hora:* {_hora_actual()}\n\n"
         "👆 _Hacer seguimiento desde el numero principal_"
     )
@@ -67,7 +72,7 @@ async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
         return False
 
 
-async def notificar_nuevo_mensaje(telefono: str, mensaje: str) -> bool:
+async def notificar_nuevo_mensaje(telefono: str, mensaje: str, plataforma: str = "WhatsApp directo", campana: str = "No aplica", es_primer_mensaje: bool = False) -> bool:
     """
     Avisa a Telegram cada vez que alguien le escribe a Max, calificado o no.
     Pensado como notificación rápida mientras no hay otro canal de atención en vivo.
@@ -75,6 +80,10 @@ async def notificar_nuevo_mensaje(telefono: str, mensaje: str) -> bool:
     Args:
         telefono: Número del contacto
         mensaje: Texto que mandó
+        plataforma: De dónde vino el contacto (solo relevante en el primer mensaje)
+        campana: Anuncio/campaña de origen, si vino de un anuncio
+        es_primer_mensaje: True si es la primera vez que este número escribe —
+            ahí sí vale la pena mostrar el origen
     """
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         logger.warning("TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados — notificación omitida")
@@ -83,10 +92,13 @@ async def notificar_nuevo_mensaje(telefono: str, mensaje: str) -> bool:
     telefono_limpio = telefono.replace("@s.whatsapp.net", "").replace("@c.us", "")
     texto_corto = mensaje if len(mensaje) <= 300 else mensaje[:300] + "…"
 
+    linea_origen = f"🌐 *Origen:* {plataforma} — {campana}\n" if (es_primer_mensaje and plataforma != "WhatsApp directo") else ""
+
     mensaje_telegram = (
         "💬 *Nuevo mensaje — MC Growth Agency*\n\n"
         f"📱 *WhatsApp:* +{telefono_limpio}\n"
         f"🗨️ *Dice:* {texto_corto}\n"
+        f"{linea_origen}"
         f"🕐 *Hora:* {_hora_actual()}"
     )
 
