@@ -14,9 +14,9 @@ from fastapi.responses import PlainTextResponse, HTMLResponse
 from dotenv import load_dotenv
 
 from agent.brain import generar_respuesta, extraer_info_lead
-from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_lead, actualizar_info_lead, obtener_leads, marcar_lead_cerrado, marcar_lead_descartado
+from agent.memory import inicializar_db, guardar_mensaje, obtener_historial, registrar_contacto, actualizar_actividad, registrar_lead, actualizar_info_lead, obtener_leads, marcar_lead_cerrado, marcar_lead_descartado, eliminar_lead
 from agent.providers import obtener_proveedor
-from agent.telegram import notificar_lead_calificado
+from agent.telegram import notificar_lead_calificado, notificar_nuevo_mensaje
 
 load_dotenv()
 
@@ -105,6 +105,14 @@ async def webhook_handler(request: Request):
 
             logger.info(f"Mensaje recibido de {msg.telefono}: {msg.texto[:80]}...")
 
+            # Registrar al contacto (calificado o no) y su actividad —
+            # así aparece en el dashboard apenas escribe, no solo cuando califica
+            await registrar_contacto(msg.telefono)
+            await actualizar_actividad(msg.telefono, msg.texto)
+
+            # Notificar por Telegram que alguien escribió, sin esperar a que califique
+            await notificar_nuevo_mensaje(msg.telefono, msg.texto)
+
             # Obtener historial ANTES de guardar el mensaje actual
             # (evita duplicados — brain.py agrega el mensaje al construir los mensajes)
             historial = await obtener_historial(msg.telefono)
@@ -177,25 +185,57 @@ async def descartar_lead(telefono: str):
     return {"status": "ok", "mensaje": f"Lead {telefono} marcado como descartado"}
 
 
+@app.post("/leads/{telefono}/eliminar")
+async def eliminar_lead_endpoint(telefono: str):
+    """API: borra manualmente un contacto/lead del dashboard. No se puede deshacer."""
+    ok = await eliminar_lead(telefono)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Lead no encontrado")
+    return {"status": "ok", "mensaje": f"Lead {telefono} eliminado"}
+
+
+def _tiempo_relativo(iso_timestamp: str) -> str:
+    """Convierte un timestamp ISO a '5 min', '2 hs', '3 días' — para ver de un vistazo quién acaba de responder."""
+    from datetime import datetime
+    momento = datetime.fromisoformat(iso_timestamp)
+    segundos = (datetime.utcnow() - momento).total_seconds()
+    if segundos < 60:
+        return "ahora"
+    if segundos < 3600:
+        return f"hace {int(segundos // 60)} min"
+    if segundos < 86400:
+        return f"hace {int(segundos // 3600)} hs"
+    return f"hace {int(segundos // 86400)} días"
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard():
-    """Dashboard web en tiempo real — leads calificados por Max."""
+    """Dashboard web en tiempo real — todos los contactos que le escribieron a Max."""
     leads = await obtener_leads()
     total = len(leads)
+    calificados = sum(1 for l in leads if l["calificado"])
     en_seguimiento = sum(1 for l in leads if not l["cerrado"] and not l["descartado"])
     cerrados = sum(1 for l in leads if l["cerrado"])
     descartados = sum(1 for l in leads if l["descartado"])
-    tasa = round(cerrados / (total - descartados) * 100) if (total - descartados) > 0 else 0
+    base_tasa = calificados - descartados
+    tasa = round(cerrados / base_tasa * 100) if base_tasa > 0 else 0
 
     filas = ""
     for lead in leads:
         tel = lead["telefono"].replace("@s.whatsapp.net", "").replace("@c.us", "")
-        fecha = lead["timestamp"][:16].replace("T", " ")
 
         nombre = lead.get("nombre", "—")
-        rubro = lead.get("rubro", "—")
-        presupuesto = lead.get("presupuesto", "—")
-        interes = lead.get("interes", "—")
+        rubro = lead.get("rubro", "—") if lead["calificado"] else "—"
+        presupuesto = lead.get("presupuesto", "—") if lead["calificado"] else "—"
+        interes = lead.get("interes", "—") if lead["calificado"] else "—"
+
+        ultimo_mensaje = lead.get("ultimo_mensaje") or "—"
+        hace = _tiempo_relativo(lead["ultima_actividad"])
+
+        if lead["calificado"]:
+            calificado_badge = '<span style="background:#22c55e;color:white;padding:2px 8px;border-radius:10px;font-size:11px;">✓ Calificado</span>'
+        else:
+            calificado_badge = '<span style="background:#334155;color:#94a3b8;padding:2px 8px;border-radius:10px;font-size:11px;">Sin calificar</span>'
 
         if lead["cerrado"]:
             estado = "Cerrado"
@@ -212,16 +252,24 @@ async def dashboard():
                 f'<button onclick="cerrar(\'{lead["telefono"]}\')" '
                 f'style="background:#22c55e;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin-right:6px;">Cerrado</button>'
                 f'<button onclick="descartar(\'{lead["telefono"]}\')" '
-                f'style="background:#475569;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">Descartar</button>'
+                f'style="background:#475569;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;margin-right:6px;">Descartar</button>'
             )
+
+        # Eliminar siempre está disponible — es una acción manual, sin importar el estado
+        botones += (
+            f'<button onclick="eliminar(\'{lead["telefono"]}\')" '
+            f'style="background:#7f1d1d;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:13px;">Eliminar</button>'
+        )
 
         filas += f"""
         <tr>
           <td style="padding:12px 16px;">+{tel}<br><span style="color:#64748b;font-size:12px;">{nombre}</span></td>
+          <td style="padding:12px 16px;">{calificado_badge}</td>
+          <td style="padding:12px 16px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{ultimo_mensaje}">{ultimo_mensaje}<br><span style="color:#64748b;font-size:12px;">{hace}</span></td>
           <td style="padding:12px 16px;">{rubro}</td>
           <td style="padding:12px 16px;">{presupuesto}</td>
-          <td style="padding:12px 16px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{interes}">{interes}</td>
-          <td style="padding:12px 16px;">{fecha}<br><span style="background:{color};color:white;padding:2px 8px;border-radius:10px;font-size:11px;">{estado}</span></td>
+          <td style="padding:12px 16px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{interes}">{interes}</td>
+          <td style="padding:12px 16px;"><span style="background:{color};color:white;padding:2px 8px;border-radius:10px;font-size:11px;">{estado}</span></td>
           <td style="padding:12px 16px;">{botones}</td>
         </tr>"""
 
@@ -253,11 +301,12 @@ async def dashboard():
 </head>
 <body>
   <div class="header">
-    <h1>Max — Dashboard de Leads</h1>
+    <h1>Max — Dashboard de Contactos</h1>
     <p>MC Growth Agency · Actualizacion automatica cada 30 segundos</p>
   </div>
   <div class="stats">
-    <div class="stat"><div class="num">{total}</div><div class="label">Leads calificados</div></div>
+    <div class="stat"><div class="num">{total}</div><div class="label">Contactos totales</div></div>
+    <div class="stat"><div class="num" style="color:#22c55e;">{calificados}</div><div class="label">Leads calificados</div></div>
     <div class="stat"><div class="num" style="color:#f59e0b;">{en_seguimiento}</div><div class="label">En seguimiento</div></div>
     <div class="stat"><div class="num" style="color:#22c55e;">{cerrados}</div><div class="label">Cerrados</div></div>
     <div class="stat"><div class="num" style="color:#64748b;">{descartados}</div><div class="label">Descartados</div></div>
@@ -265,11 +314,11 @@ async def dashboard():
   </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>WhatsApp</th><th>Rubro</th><th>Presupuesto ads</th><th>Interes</th><th>Fecha / Estado</th><th>Acciones</th></tr></thead>
-      <tbody>{filas if filas else '<tr><td colspan="6" style="padding:32px;text-align:center;color:#64748b;">Sin leads aun. Max esta listo para calificar.</td></tr>'}</tbody>
+      <thead><tr><th>WhatsApp</th><th>Calificado</th><th>Último mensaje</th><th>Rubro</th><th>Presupuesto ads</th><th>Interes</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody>{filas if filas else '<tr><td colspan="8" style="padding:32px;text-align:center;color:#64748b;">Sin contactos aun. Max esta listo para atender.</td></tr>'}</tbody>
     </table>
   </div>
-  <p class="refresh">Ultima actualizacion: {leads[0]["timestamp"][:16].replace("T", " ") if leads else "—"} · <a href="/dashboard">Actualizar</a></p>
+  <p class="refresh">Ultima actualizacion: {_tiempo_relativo(leads[0]["ultima_actividad"]) if leads else "—"} · <a href="/dashboard">Actualizar</a></p>
   <script>
     async function cerrar(telefono) {{
       if (!confirm('Marcar como Cerrado (cliente ganado)?')) return;
@@ -280,6 +329,12 @@ async def dashboard():
     async function descartar(telefono) {{
       if (!confirm('Marcar como Descartado (no avanzo)?')) return;
       const r = await fetch('/leads/' + encodeURIComponent(telefono) + '/descartar', {{method: 'POST'}});
+      if (r.ok) location.reload();
+      else alert('Error');
+    }}
+    async function eliminar(telefono) {{
+      if (!confirm('Eliminar este contacto del dashboard? Esta accion no se puede deshacer.')) return;
+      const r = await fetch('/leads/' + encodeURIComponent(telefono) + '/eliminar', {{method: 'POST'}});
       if (r.ok) location.reload();
       else alert('Error');
     }}

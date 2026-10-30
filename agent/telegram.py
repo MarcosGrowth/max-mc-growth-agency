@@ -67,6 +67,49 @@ async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
         return False
 
 
+async def notificar_nuevo_mensaje(telefono: str, mensaje: str) -> bool:
+    """
+    Avisa a Telegram cada vez que alguien le escribe a Max, calificado o no.
+    Pensado como notificación rápida mientras no hay otro canal de atención en vivo.
+
+    Args:
+        telefono: Número del contacto
+        mensaje: Texto que mandó
+    """
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        logger.warning("TELEGRAM_BOT_TOKEN o TELEGRAM_CHAT_ID no configurados — notificación omitida")
+        return False
+
+    telefono_limpio = telefono.replace("@s.whatsapp.net", "").replace("@c.us", "")
+    texto_corto = mensaje if len(mensaje) <= 300 else mensaje[:300] + "…"
+
+    mensaje_telegram = (
+        "💬 *Nuevo mensaje — MC Growth Agency*\n\n"
+        f"📱 *WhatsApp:* +{telefono_limpio}\n"
+        f"🗨️ *Dice:* {texto_corto}\n"
+        f"🕐 *Hora:* {_hora_actual()}"
+    )
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": TELEGRAM_CHAT_ID,
+        "text": mensaje_telegram,
+        "parse_mode": "Markdown",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(url, json=payload)
+            if r.status_code == 200:
+                return True
+            else:
+                logger.error(f"Error Telegram (nuevo mensaje): {r.status_code} — {r.text}")
+                return False
+    except Exception as e:
+        logger.error(f"Error enviando notificacion Telegram (nuevo mensaje): {e}")
+        return False
+
+
 def _hora_actual() -> str:
     """Retorna la hora actual formateada."""
     from datetime import datetime
