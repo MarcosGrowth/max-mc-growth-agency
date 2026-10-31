@@ -77,6 +77,10 @@ class Lead(Base):
     # escribir arriba de todo) y para la campanita de "no leído por un humano"
     ultima_actividad: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     no_leido: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Calificado — lo pone Max automáticamente cuando detecta que calificó,
+    # pero también se puede marcar/desmarcar a mano desde el dashboard para
+    # tener la métrica real de conversión del funnel.
+    calificado: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Canal(Base):
@@ -138,6 +142,9 @@ async def inicializar_db():
             for nombre, tipo in nuevas.items():
                 if nombre not in existentes:
                     await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {nombre} {tipo}"))
+            if "calificado" not in existentes:
+                await conn.execute(text("ALTER TABLE leads ADD COLUMN calificado BOOLEAN DEFAULT 0"))
+                await conn.execute(text("UPDATE leads SET calificado = notificado"))
             if "ultima_actividad" not in existentes:
                 await conn.execute(text("ALTER TABLE leads ADD COLUMN ultima_actividad DATETIME"))
                 await conn.execute(text("UPDATE leads SET ultima_actividad = timestamp WHERE ultima_actividad IS NULL"))
@@ -153,6 +160,8 @@ async def inicializar_db():
             # create_all no modifica tablas ya existentes. Estas migraciones
             # pequeñas mantienen compatible la base de datos de clientes
             # cuando publicamos una nueva versión del núcleo.
+            columnas_pg = await conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='leads'"))
+            existentes_pg = {fila[0] for fila in columnas_pg.fetchall()}
             await conn.execute(text("ALTER TABLE mensajes ADD COLUMN IF NOT EXISTS fuente VARCHAR(20) DEFAULT 'bot'"))
             await conn.execute(text("ALTER TABLE canales ADD COLUMN IF NOT EXISTS coexistencia BOOLEAN DEFAULT FALSE"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS nota TEXT DEFAULT ''"))
@@ -163,6 +172,9 @@ async def inicializar_db():
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS origen VARCHAR(100) DEFAULT 'WhatsApp'"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS revision_notificada BOOLEAN DEFAULT FALSE"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS no_leido BOOLEAN DEFAULT FALSE"))
+            if "calificado" not in existentes_pg:
+                await conn.execute(text("ALTER TABLE leads ADD COLUMN calificado BOOLEAN DEFAULT FALSE"))
+                await conn.execute(text("UPDATE leads SET calificado = notificado"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS ultima_actividad TIMESTAMP"))
             await conn.execute(text("UPDATE leads SET ultima_actividad = timestamp WHERE ultima_actividad IS NULL"))
 
@@ -318,13 +330,26 @@ async def marcar_leido(telefono: str) -> bool:
 
 
 async def marcar_lead_notificado(telefono: str) -> bool:
-    """Marca que el lead ya fue enviado al equipo como calificado."""
+    """Marca que el lead ya fue enviado al equipo como calificado (y lo cuenta como calificado)."""
     async with async_session() as session:
         result = await session.execute(select(Lead).where(Lead.telefono == telefono))
         lead = result.scalar_one_or_none()
         if not lead:
             return False
         lead.notificado = True
+        lead.calificado = True
+        await session.commit()
+        return True
+
+
+async def marcar_calificado(telefono: str, calificado: bool) -> bool:
+    """Marca/desmarca a mano si un lead califica, para la métrica de conversión del funnel."""
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+        lead.calificado = calificado
         await session.commit()
         return True
 
@@ -540,6 +565,7 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "origen": l.origen or "WhatsApp",
                 "bot_activo": controls.get(l.telefono, True),
                 "no_leido": l.no_leido,
+                "calificado": l.calificado,
                 "ultima_actividad": (l.ultima_actividad or l.timestamp).isoformat(),
                 "timestamp": l.timestamp.isoformat(),
             }
