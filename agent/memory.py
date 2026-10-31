@@ -73,6 +73,10 @@ class Lead(Base):
     valor_oportunidad: Mapped[str] = mapped_column(String(100), default="")
     origen: Mapped[str] = mapped_column(String(100), default="WhatsApp")
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Actividad reciente — para ordenar como cualquier CRM (el que acaba de
+    # escribir arriba de todo) y para la campanita de "no leído por un humano"
+    ultima_actividad: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    no_leido: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class Canal(Base):
@@ -129,10 +133,14 @@ async def inicializar_db():
                 "fecha_proxima_accion": "VARCHAR(30) DEFAULT ''",
                 "valor_oportunidad": "VARCHAR(100) DEFAULT ''",
                 "origen": "VARCHAR(100) DEFAULT 'WhatsApp'",
+                "no_leido": "BOOLEAN DEFAULT 0",
             }
             for nombre, tipo in nuevas.items():
                 if nombre not in existentes:
                     await conn.execute(text(f"ALTER TABLE leads ADD COLUMN {nombre} {tipo}"))
+            if "ultima_actividad" not in existentes:
+                await conn.execute(text("ALTER TABLE leads ADD COLUMN ultima_actividad DATETIME"))
+                await conn.execute(text("UPDATE leads SET ultima_actividad = timestamp WHERE ultima_actividad IS NULL"))
             columnas_mensajes = await conn.execute(text("PRAGMA table_info(mensajes)"))
             existentes_mensajes = {fila[1] for fila in columnas_mensajes.fetchall()}
             if "fuente" not in existentes_mensajes:
@@ -154,6 +162,9 @@ async def inicializar_db():
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS valor_oportunidad VARCHAR(100) DEFAULT ''"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS origen VARCHAR(100) DEFAULT 'WhatsApp'"))
             await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS revision_notificada BOOLEAN DEFAULT FALSE"))
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS no_leido BOOLEAN DEFAULT FALSE"))
+            await conn.execute(text("ALTER TABLE leads ADD COLUMN IF NOT EXISTS ultima_actividad TIMESTAMP"))
+            await conn.execute(text("UPDATE leads SET ultima_actividad = timestamp WHERE ultima_actividad IS NULL"))
 
     # Se consulta después de cerrar la transacción anterior. En PostgreSQL,
     # otro connection no puede ver la tabla hasta que create_all fue confirmado.
@@ -273,6 +284,35 @@ async def registrar_lead(telefono: str, notificado: bool = False) -> bool:
 
         lead = Lead(telefono=telefono, notificado=notificado, cerrado=False, descartado=False)
         session.add(lead)
+        await session.commit()
+        return True
+
+
+async def registrar_actividad(telefono: str) -> bool:
+    """
+    Actualiza la marca de actividad cada vez que el contacto escribe, y lo
+    deja marcado como no leído por un humano — independientemente de que
+    Max ya le haya contestado. Se llama en CADA mensaje entrante.
+    """
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+        lead.ultima_actividad = datetime.utcnow()
+        lead.no_leido = True
+        await session.commit()
+        return True
+
+
+async def marcar_leido(telefono: str) -> bool:
+    """Marca que un humano ya vio la conversación. Se llama al abrir el chat."""
+    async with async_session() as session:
+        result = await session.execute(select(Lead).where(Lead.telefono == telefono))
+        lead = result.scalar_one_or_none()
+        if not lead:
+            return False
+        lead.no_leido = False
         await session.commit()
         return True
 
@@ -470,7 +510,7 @@ async def eliminar_lead(telefono: str) -> bool:
 async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
     """Retorna todos los leads registrados para el dashboard."""
     async with async_session() as session:
-        query = select(Lead).order_by(Lead.timestamp.desc())
+        query = select(Lead).order_by(Lead.ultima_actividad.desc())
         if solo_abiertos:
             query = query.where(Lead.cerrado == False)
         result = await session.execute(query)
@@ -499,6 +539,8 @@ async def obtener_leads(solo_abiertos: bool = False) -> list[dict]:
                 "valor_oportunidad": l.valor_oportunidad or "",
                 "origen": l.origen or "WhatsApp",
                 "bot_activo": controls.get(l.telefono, True),
+                "no_leido": l.no_leido,
+                "ultima_actividad": (l.ultima_actividad or l.timestamp).isoformat(),
                 "timestamp": l.timestamp.isoformat(),
             }
             for l in leads
