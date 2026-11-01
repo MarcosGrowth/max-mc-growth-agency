@@ -1,0 +1,10 @@
+.env
+node_modules/
+.hyperframes/
+.transcode-cache/
+remotion/out/
+proyectos/*/audio/out/*_raw.wav
+proyectos/*/draft*.mp4
+__pycache__/
+*.pyc
+.DS_Store

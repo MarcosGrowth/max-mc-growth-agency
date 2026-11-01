@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>REEL — plantilla</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="assets/data.js"></script>
+    <style>
+      /* Tipografías de la marca: copiar los .woff2 de marca/assets/ a assets/fonts/ y ajustar estos nombres */
+      @font-face { font-family: "Marca Display"; src: url("assets/fonts/display.woff2") format("woff2"); font-weight: 100 900; }
+      @font-face { font-family: "Marca Texto"; src: url("assets/fonts/texto.woff2") format("woff2"); font-weight: 100 900; }
+      /* Colores de la marca: completar con los de marca/marca.md */
+      :root { --fondo: #101010; --superficie: #1b1b1f; --texto: #f5f5f5; --secundario: #a0a0a8; --acento: #3b82f6; }
+      body { margin: 0; background: var(--fondo); color: var(--texto); font-family: "Marca Texto", Arial, sans-serif; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--fondo); }
+      .clip { position: absolute; inset: 0; }
+      /* Frases: una por vez, palabra por palabra con la voz. Zona segura de anuncios: y 270–1250 */
+      #lines { position: absolute; left: 90px; width: 900px; top: 1085px; height: 170px; }
+      .line { position: absolute; inset: 0; display: flex; flex-wrap: wrap; align-content: flex-start; justify-content: center;
+        font-family: "Marca Display", Arial, sans-serif; font-size: 58px; font-weight: 700; line-height: 1.16; text-align: center; }
+      .line span { display: inline-block; margin: 0 0.13em; }
+      .line .acc { color: var(--acento); }
+      #hola { position: absolute; left: 0; width: 1080px; top: 600px; text-align: center; font-family: "Marca Display", Arial, sans-serif; font-size: 120px; font-weight: 900; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="10">
+      <audio id="mix" src="assets/audio/mix.wav" data-start="0" data-duration="10" data-track-index="9" data-volume="1"></audio>
+      <section id="s1" class="clip" data-start="0" data-duration="10" data-track-index="1">
+        <div id="hola">Escena 1</div>
+      </section>
+      <div id="lines" data-layout-allow-overlap data-layout-allow-overflow></div>
+    </div>
+    <script>
+      const D = window.REEL || { frases: [], tl: {} };
+      const tl = gsap.timeline({ paused: true, defaults: { ease: "expo.out" } });
+      // frases con la voz
+      const linesEl = document.getElementById("lines");
+      D.frases.forEach((f, i) => {
+        const el = document.createElement("div");
+        el.className = "line"; el.id = "ln" + i; el.setAttribute("data-layout-allow-overlap", "");
+        el.innerHTML = f.words.map((w, j) => `<span id="w${i}_${j}" class="${w.a ? "acc" : ""}">${w.w}</span>`).join("");
+        linesEl.appendChild(el);
+        f.words.forEach((w, j) => tl.fromTo(`#w${i}_${j}`, { opacity: 0, y: 22, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.35, ease: "power3.out" }, w.t));
+        tl.to("#ln" + i, { opacity: 0, y: -16, duration: 0.2, ease: "power2.in" }, f.end - 0.2);
+      });
+      // escenas: reemplazar por las del plan
+      tl.fromTo("#hola", { opacity: 0, scale: 1.2, filter: "blur(12px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.6 }, 0.2);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>
