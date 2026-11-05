@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1080, height=1920" />
+    <title>MC Growth — Manifiesto</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <script src="assets/data.js"></script>
+    <style>
+      @font-face { font-family: "Geist"; src: url("assets/fonts/Geist-Variable.woff2") format("woff2"); font-weight: 100 900; }
+      @font-face { font-family: "Geist Mono"; src: url("assets/fonts/GeistMono-Variable.woff2") format("woff2"); font-weight: 100 900; }
+      :root { --negro: #09090b; --naranja: #f47b20; --texto: #f5f6f8; }
+      body { margin: 0; background: var(--negro); font-family: "Geist", Arial, sans-serif; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: var(--negro); }
+      .frame { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-bottom: 180px; box-sizing: border-box; opacity: 0; }
+      .frame.n { background: radial-gradient(ellipse 90% 70% at 85% 0%, rgba(244,123,32,0.16), rgba(244,123,32,0) 60%), #09090b; color: var(--texto); }
+      .frame.o { background: radial-gradient(ellipse 80% 60% at 50% 45%, #ff9a4d 0%, #f47b20 55%, #d8620f 100%); color: #09090b; }
+      .frame.n::before { content: ""; position: absolute; inset: 0; background-image: linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 90px 90px; }
+      .w { position: relative; font-weight: 900; letter-spacing: -0.045em; line-height: 0.92; white-space: nowrap; text-align: center; }
+      .w.small { font-weight: 800; letter-spacing: -0.03em; margin-bottom: 6px; }
+      .acc { color: var(--naranja); }
+      #logoScene { position: absolute; inset: 0; background: radial-gradient(ellipse 80% 55% at 50% 40%, rgba(244,123,32,0.22), rgba(244,123,32,0) 65%), #09090b; opacity: 0; }
+      .lg { position: absolute; left: 140px; top: 640px; width: 800px; }
+      #streak { position: absolute; left: 535px; top: 520px; width: 10px; height: 900px; border-radius: 5px; background: linear-gradient(180deg, rgba(244,123,32,0), #f47b20 40%, #ffb36f); box-shadow: 0 0 30px #f47b20; transform-origin: 50% 100%; }
+      #tag { position: absolute; left: 0; width: 1080px; top: 930px; text-align: center; font-family: "Geist Mono", monospace; font-size: 40px; letter-spacing: 5px; color: #aeb4c3; }
+      #btn { position: absolute; left: 190px; top: 900px; width: 700px; height: 118px; border-radius: 22px; background: var(--naranja); color: #09090b; font-size: 46px; font-weight: 800;
+        display: flex; align-items: center; justify-content: center; box-shadow: 0 0 70px rgba(244,123,32,0.5); }
+      #tap { position: absolute; left: 0; width: 1080px; top: 1050px; text-align: center; font-size: 50px; font-weight: 800; color: var(--texto); }
+      #arrow { position: absolute; left: 495px; top: 1130px; width: 90px; height: 112px; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1080" data-height="1920" data-duration="13">
+      <audio id="mix" src="assets/audio/mix.wav" data-start="0" data-duration="13" data-track-index="9" data-volume="1"></audio>
+      <section id="words" class="clip" data-start="0" data-duration="8.45" data-track-index="1" style="position:absolute; inset:0"></section>
+      <section id="end" class="clip" data-start="8.35" data-duration="4.65" data-track-index="2" style="position:absolute; inset:0">
+        <div id="logoScene">
+          <div id="streak"></div>
+          <img class="lg" id="lgC" src="assets/img/logo_alpha.png" style="opacity:0; filter: drop-shadow(0 0 0 #00e5ff) hue-rotate(160deg)" />
+          <img class="lg" id="lgR" src="assets/img/logo_alpha.png" style="opacity:0; filter: sepia(1) saturate(8) hue-rotate(-30deg)" />
+          <img class="lg" id="lg" src="assets/img/logo_alpha.png" />
+          <div id="tag">GROWTH APLICADO AL NEGOCIO</div>
+          <div id="btn">Solicitar diagnóstico ↗</div>
+          <div id="tap">Tocá <span style="color:var(--naranja)">«Más información»</span></div>
+          <svg id="arrow" viewBox="0 0 120 150"><path d="M60 10 V120 M18 82 L60 124 L102 82" stroke="#F47B20" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </div>
+      </section>
+    </div>
+    <script>
+      document.fonts.ready.then(() => {
+      const D = window.M4, C = D.cuadros;
+      const wrap = document.getElementById("words");
+      // tamaño de letra para que cada palabra entre en 920 px de ancho
+      const HF = window.__hyperframes;
+      // tamaño medido con la fuente real para que cada palabra entre en 900 px de ancho
+      const fit = (txt, max) => (HF && HF.fitTextFontSize)
+        ? Math.round(HF.fitTextFontSize(txt.replace(/\*/g, ""), { fontFamily: "Geist", fontWeight: 900, maxWidth: 900, baseFontSize: max, minFontSize: 60 }).fontSize)
+        : Math.round(Math.min(max, 900 / (txt.replace(/\*/g, "").length * 0.66)));
+      C.forEach((c, i) => {
+        const f = document.createElement("div");
+        f.className = "frame " + c.fondo; f.id = "f" + i;
+        const lines = c.lineas;
+        f.innerHTML = lines.map((l, k) => {
+          const small = lines.length > 1 && k === 0;
+          const acc = l.startsWith("*");
+          const txt = l.replace(/\*/g, "");
+          const bigTxt = lines[lines.length - 1].replace(/\*/g, "");
+          const fs = small ? Math.max(84, fit(bigTxt, 270) * 0.46) : fit(txt, 270);
+          return `<div class="w${small ? " small" : ""}${acc ? " acc" : ""}" id="f${i}w${k}" style="font-size:${Math.round(fs)}px">${txt}</div>`;
+        }).join("");
+        wrap.appendChild(f);
+      });
+
+      const tl = gsap.timeline({ paused: true, defaults: { ease: "expo.out" } });
+      C.forEach((c, i) => {
+        const end = i + 1 < C.length ? C[i + 1].t : D.logo;
+        tl.set("#f" + i, { opacity: 1 }, c.t);
+        tl.set("#f" + i, { opacity: 0 }, end);
+        const big = "#f" + i + "w" + (c.lineas.length - 1);
+        if (!c.tipeo) tl.fromTo(big, { scale: 1.08, filter: "blur(10px)" }, { scale: 1, filter: "blur(0px)", duration: Math.min(0.18, (end - c.t) * 0.5) }, c.t);
+        if (c.lineas.length > 1) tl.fromTo("#f" + i + "w0", { y: 0 }, { y: 0, duration: 0.01 }, c.t);
+      });
+      // "crecimiento." se sostiene con un leve empuje hasta el logo
+      const last = "#f" + (C.length - 1) + "w0";
+      tl.fromTo(last, { scale: 1 }, { scale: 1.06, duration: D.logo - C[C.length - 1].t - 0.2, ease: "none", immediateRender: false }, C[C.length - 1].t + 0.2);
+
+      // LOGO — glitch y despegue
+      const L0 = D.logo;
+      tl.set("#logoScene", { opacity: 1 }, L0);
+      [[0, -18, 8, "inset(0% 0% 55% 0%)"], [0.05, 22, -6, "inset(45% 0% 0% 0%)"], [0.1, -10, 4, "inset(20% 0% 40% 0%)"], [0.15, 12, -10, "inset(0% 0% 0% 0%)"]].forEach(([dt, dx, dy, clip]) => {
+        tl.set("#lgC", { opacity: 0.8, x: dx, y: dy, clipPath: clip }, L0 + dt);
+        tl.set("#lgR", { opacity: 0.8, x: -dx, y: -dy, clipPath: clip }, L0 + dt);
+        tl.set("#lg", { x: dx * 0.4, clipPath: clip }, L0 + dt);
+      });
+      tl.set(["#lgC", "#lgR"], { opacity: 0 }, L0 + 0.22);
+      tl.set("#lg", { x: 0, clipPath: "inset(0% 0% 0% 0%)" }, L0 + 0.22);
+      tl.fromTo("#lg", { scale: 1.18, filter: "blur(10px)" }, { scale: 1, filter: "blur(0px)", duration: 0.5 }, L0);
+      tl.fromTo("#streak", { scaleY: 0, opacity: 1 }, { scaleY: 1, opacity: 0, duration: 0.9, ease: "power3.out" }, L0 + 0.15);
+      tl.fromTo("#tag", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5 }, L0 + 0.5);
+      // CTA
+      const T = D.cta;
+      tl.to(["#lg", "#lgC", "#lgR"], { y: -330, scale: 0.72, duration: 0.6, ease: "power3.inOut" }, T);
+      tl.to("#tag", { y: -300, opacity: 0, duration: 0.4, ease: "power2.in" }, T);
+      tl.fromTo("#btn", { opacity: 0, scale: 0.6, y: 30 }, { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: "back.out(2.2)" }, T + 0.3);
+      tl.fromTo("#tap", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4 }, T + 0.6);
+      tl.fromTo("#arrow", { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.35 }, T + 0.75);
+      tl.fromTo("#arrow", { y: 0 }, { y: 24, duration: 0.35, ease: "sine.inOut", yoyo: true, repeat: 5, immediateRender: false }, T + 1.1);
+
+      window.__timelines["main"] = tl;
+      });
+    </script>
+  </body>
+</html>
