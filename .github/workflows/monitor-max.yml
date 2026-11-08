@@ -22,6 +22,7 @@ jobs:
       - name: Revisar servicio y notificar cambios
         env:
           HEALTH_URL: ${{ secrets.MAX_HEALTH_URL }}
+          MONITOR_SECRET: ${{ secrets.MAX_MONITOR_SECRET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         shell: bash
@@ -29,7 +30,8 @@ jobs:
           set +e
           mkdir -p .monitor-state
           previous="$(cat .monitor-state/status 2>/dev/null || echo unknown)"
-          response="$(curl -fsS --max-time 25 "$HEALTH_URL" 2>/dev/null)"
+          base_url="${HEALTH_URL%/}"
+          response="$(curl -fsS --max-time 25 "$base_url/health/ai" -H "x-monitor-secret: $MONITOR_SECRET" 2>/dev/null)"
           if [ $? -eq 0 ] && echo "$response" | grep -q '"status":"ok"'; then
             current="up"
           else
