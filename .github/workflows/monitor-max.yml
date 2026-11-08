@@ -29,7 +29,7 @@ jobs:
         run: |
           set +e
           mkdir -p .monitor-state
-          previous="$(cat .monitor-state/status 2>/dev/null || echo unknown)"
+          previous="$(cat .monitor-state/status 2>/dev/null || echo up)"
           base_url="${HEALTH_URL%/}"
           response="$(curl -fsS --max-time 25 "$base_url/health/ai" -H "x-monitor-secret: $MONITOR_SECRET" 2>/dev/null)"
           if [ $? -eq 0 ] && echo "$response" | grep -q '"status":"ok"'; then
@@ -38,7 +38,7 @@ jobs:
             current="down"
           fi
 
-          if [ "$current" != "$previous" ] && [ "$previous" != "unknown" ]; then
+          if [ "$current" != "$previous" ]; then
             if [ "$current" = "down" ]; then
               text="🚨 ALERTA: Max no responde\n\nEl servicio de MC Growth Agency no está respondiendo correctamente. Revisá Render y sus logs.\n\nHora: $(date -u '+%d/%m/%Y %H:%M UTC')"
             else
