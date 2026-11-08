@@ -18,6 +18,24 @@ logger = logging.getLogger("agentkit")
 
 # Cliente de Anthropic (usa la ANTHROPIC_API_KEY del .env)
 client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+MODEL_PRINCIPAL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+
+
+async def verificar_ia() -> tuple[bool, str]:
+    """Comprueba que la clave y el modelo configurado puedan responder."""
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        return False, "ANTHROPIC_API_KEY no configurada"
+    try:
+        await client.messages.create(
+            model=MODEL_PRINCIPAL,
+            max_tokens=1,
+            system="Respondé únicamente OK.",
+            messages=[{"role": "user", "content": "Ping de monitoreo"}],
+        )
+        return True, "ok"
+    except Exception as e:
+        logger.error(f"Healthcheck Claude falló: {e}")
+        return False, str(e)
 
 
 def cargar_config_prompts() -> dict:
@@ -90,7 +108,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> str:
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-6",
+            model=MODEL_PRINCIPAL,
             max_tokens=1024,
             system=system_prompt,
             messages=mensajes
