@@ -18,6 +18,7 @@ logger = logging.getLogger("agentkit")
 
 # Cliente de Anthropic (usa la ANTHROPIC_API_KEY del .env)
 client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+MODEL_PRINCIPAL = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 
 
 def cargar_config_prompts() -> dict:
@@ -90,7 +91,7 @@ async def generar_respuesta(mensaje: str, historial: list[dict]) -> str:
 
     try:
         response = await client.messages.create(
-            model="claude-haiku-5-5",
+            model=MODEL_PRINCIPAL,
             max_tokens=1024,
             system=system_prompt,
             messages=mensajes
