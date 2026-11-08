@@ -45,6 +45,34 @@ BOT_ENABLED = True
 security = HTTPBasic(auto_error=False)
 SESSION_COOKIE = "mc_growth_session"
 
+# ── Marca del workspace — configurable por cliente, sin tocar código ──────
+BRAND_NAME = os.getenv("BRAND_NAME", "MC Growth OS")
+BRAND_COMPANY = os.getenv("BRAND_COMPANY", "MC Growth")
+BRAND_TAGLINE = os.getenv("BRAND_TAGLINE", "Growth OS · Lead intelligence")
+BRAND_SHORT = os.getenv("BRAND_SHORT", "MC")
+BRAND_COLOR = os.getenv("BRAND_COLOR", "#f47b20")
+BRAND_COLOR_2 = os.getenv("BRAND_COLOR_2", "#ff9a4d")
+BRAND_LOGO_URL = os.getenv("BRAND_LOGO_URL", "")
+
+
+def _marca(html: str) -> str:
+    """
+    Reemplaza los textos y colores de marca hardcodeados en el HTML por los
+    configurados en las variables BRAND_* — así el mismo dashboard sirve
+    para cualquier cliente de la base sin tocar este archivo.
+    El orden importa: la frase larga va antes que la corta para no dejarla
+    pisada a medias (ej. "MC Growth OS" antes que "MC Growth").
+    """
+    return (
+        html
+        .replace("#f47b20", BRAND_COLOR)
+        .replace("#ff9a4d", BRAND_COLOR_2)
+        .replace("MC Growth OS", BRAND_NAME)
+        .replace("Growth OS · Lead intelligence", BRAND_TAGLINE)
+        .replace("<div>MC Growth <small>", f"<div>{BRAND_COMPANY} <small>")
+        .replace('class="mark">MC<', f'class="mark">{BRAND_SHORT}<')
+    )
+
 
 def _firma_sesion(timestamp: str) -> str:
     secreto = os.getenv("DASHBOARD_PASSWORD", "")
@@ -763,7 +791,8 @@ async def dashboard(_usuario: str = Depends(autenticar_dashboard)):
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page():
-    return HTMLResponse("""<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acceso · MC Growth OS</title><style>body{margin:0;background:#09090b;color:#f4f4f5;font:14px system-ui;display:grid;place-items:center;min-height:100vh}.box{width:min(360px,calc(100% - 40px));background:#111113;border:1px solid #27272a;border-radius:16px;padding:28px}.mark{display:inline-block;background:#f47b20;color:#09090b;border-radius:9px;padding:9px;font-weight:900;margin-bottom:16px}h1{font-size:22px;margin:0 0 6px}p{color:#a1a1aa;margin:0 0 22px}label{display:block;color:#a1a1aa;font-size:12px;margin:13px 0 6px}input{width:100%;padding:11px;border-radius:8px;border:1px solid #3f3f46;background:#18181b;color:#fff;box-sizing:border-box}button{width:100%;margin-top:20px;padding:11px;border:0;border-radius:8px;background:#f47b20;color:#09090b;font-weight:800;cursor:pointer}</style></head><body><form class="box" method="post"><div class="mark">MC</div><h1>MC Growth OS</h1><p>Ingresá para ver tus oportunidades.</p><label>Usuario</label><input name="usuario" autocomplete="username" required><label>Contraseña</label><input name="clave" type="password" autocomplete="current-password" required><button>Ingresar al dashboard</button></form></body></html>""")
+    html = """<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Acceso · MC Growth OS</title><style>body{margin:0;background:#09090b;color:#f4f4f5;font:14px system-ui;display:grid;place-items:center;min-height:100vh}.box{width:min(360px,calc(100% - 40px));background:#111113;border:1px solid #27272a;border-radius:16px;padding:28px}.mark{display:inline-block;background:#f47b20;color:#09090b;border-radius:9px;padding:9px;font-weight:900;margin-bottom:16px}h1{font-size:22px;margin:0 0 6px}p{color:#a1a1aa;margin:0 0 22px}label{display:block;color:#a1a1aa;font-size:12px;margin:13px 0 6px}input{width:100%;padding:11px;border-radius:8px;border:1px solid #3f3f46;background:#18181b;color:#fff;box-sizing:border-box}button{width:100%;margin-top:20px;padding:11px;border:0;border-radius:8px;background:#f47b20;color:#09090b;font-weight:800;cursor:pointer}</style></head><body><form class="box" method="post"><div class="mark">MC</div><h1>MC Growth OS</h1><p>Ingresá para ver tus oportunidades.</p><label>Usuario</label><input name="usuario" autocomplete="username" required><label>Contraseña</label><input name="clave" type="password" autocomplete="current-password" required><button>Ingresar al dashboard</button></form></body></html>"""
+    return HTMLResponse(_marca(html))
 
 
 @app.post("/login")
@@ -823,16 +852,20 @@ document.querySelector('.top').insertAdjacentHTML('beforeend','<div class="heade
 document.querySelector('.tabs').insertAdjacentHTML('beforeend','<button class="tab" data-tab="inbox">Bandeja</button>');document.querySelector('main').insertAdjacentHTML('beforeend','<section id="inbox" class="panel"><div id="inbox-list" class="pipeline" style="grid-template-columns:repeat(3,1fr)"></div><div class="note">Acá aparecen todos los contactos que hablaron con Max, incluso los que todavía no completaron la calificación.</div></section>');document.querySelectorAll('.tab').forEach(function(b){b.onclick=function(){document.querySelectorAll('.tab,.panel').forEach(function(x){x.classList.remove('active')});b.classList.add('active');document.getElementById(b.dataset.tab).classList.add('active');if(b.dataset.tab==='canales')loadChannels();if(b.dataset.tab==='inbox')loadInbox()}});load();setInterval(load,30000);
 </script></body></html>""")
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
-    response.body = response.body.replace(
-        '<header class="top"><div class="brand"><div class="mark">MC</div><div>MC Growth <small>Growth OS · Lead intelligence</small></div></div><div class="live">● Max operativo</div></header>'.encode("utf-8"),
-        '<header class="top" style="height:72px;padding:0 32px"><div class="brand" style="gap:0"><img src="/branding/mc-logo.png" alt="MC Marketing" style="width:154px;height:auto;display:block;filter:drop-shadow(0 0 12px rgba(244,123,32,.28))"></div><div class="live">● Max operativo</div></header>'.encode("utf-8"),
-        1,
-    )
-    response.body = response.body.replace(
-        b'<div class="mark">MC</div>',
-        b'<div class="mark" aria-label="MC Marketing"><img src="/branding/mc-logo.png" alt="MC Marketing" style="width:24px;height:24px;display:block;object-fit:contain"></div>',
-        1,
-    )
+    if BRAND_LOGO_URL:
+        # Solo se reemplaza el "MC" de texto por una imagen si el cliente
+        # configuró un logo (BRAND_LOGO_URL). Sin eso, queda el mark de texto
+        # con las iniciales de BRAND_SHORT — generado más abajo por _marca().
+        response.body = response.body.replace(
+            '<header class="top"><div class="brand"><div class="mark">MC</div><div>MC Growth <small>Growth OS · Lead intelligence</small></div></div><div class="live">● Max operativo</div></header>'.encode("utf-8"),
+            f'<header class="top" style="height:72px;padding:0 32px"><div class="brand" style="gap:0"><img src="{BRAND_LOGO_URL}" alt="{BRAND_COMPANY}" style="width:154px;height:auto;display:block;filter:drop-shadow(0 0 12px rgba(244,123,32,.28))"></div><div class="live">● Max operativo</div></header>'.encode("utf-8"),
+            1,
+        )
+        response.body = response.body.replace(
+            b'<div class="mark">MC</div>',
+            f'<div class="mark" aria-label="{BRAND_COMPANY}"><img src="{BRAND_LOGO_URL}" alt="{BRAND_COMPANY}" style="width:24px;height:24px;display:block;object-fit:contain"></div>'.encode("utf-8"),
+            1,
+        )
     sales_script = '''<script>
     (function(){
       var oldPipeline=document.querySelector('#pipeline .pipeline');
@@ -901,5 +934,6 @@ document.querySelector('.tabs').insertAdjacentHTML('beforeend','<button class="t
     })();
     </script>'''
     response.body = response.body.replace(b'</body></html>', workspace_script.encode('utf-8') + b'</body></html>', 1)
+    response.body = _marca(response.body.decode("utf-8")).encode("utf-8")
     response.headers["Content-Length"] = str(len(response.body))
     return response
