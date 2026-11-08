@@ -23,14 +23,16 @@ El número humano del cliente puede seguir funcionando en WhatsApp Business App 
 3. Crear un proyecto PostgreSQL independiente, por ejemplo en Supabase.
 4. Cargar las variables de entorno del cliente en Render.
 5. Configurar `config/business.yaml`, `config/prompts.yaml` y la carpeta `knowledge/`.
-6. Crear el número de WhatsApp Cloud API y configurar el webhook.
-7. Configurar el bot de Telegram y su `TELEGRAM_CHAT_ID`.
-8. Definir `DASHBOARD_USERNAME` y una contraseña única.
-9. Probar salud, login, conversación, lead calificado, Telegram, dashboard y exportaciones.
+6. Configurar la marca del dashboard con las variables `BRAND_*` (ver más abajo) — sin esto, el cliente ve el nombre y colores de MC Growth Agency.
+7. Crear el número de WhatsApp Cloud API y configurar el webhook.
+8. Configurar el bot de Telegram y su `TELEGRAM_CHAT_ID`.
+9. Definir `DASHBOARD_USERNAME` y una contraseña única.
+10. Probar salud, login, conversación, lead calificado, Telegram, dashboard y exportaciones.
 
 ## Checklist antes de entregar una instancia
 
 - Confirmar que `/api/system/status` informa `PostgreSQL` y `production`.
+- Confirmar que el dashboard muestra la marca del cliente (nombre, color, logo), no la de MC Growth Agency.
 - Enviar una conversación de prueba y verificar que queda visible en **Bandeja**.
 - Verificar extracción de nombre, rubro, presupuesto, interés y sentimiento.
 - Confirmar recepción de Telegram y carga del lead en **Pipeline**.
@@ -54,6 +56,22 @@ DATABASE_URL=postgresql+asyncpg://...
 ENVIRONMENT=production
 DASHBOARD_USERNAME=
 DASHBOARD_PASSWORD=
+```
+
+## Marca del dashboard (`BRAND_*`)
+
+Todas opcionales — sin configurarlas, el dashboard usa la identidad de MC Growth Agency
+(naranja, "MC Growth OS"). Para un cliente nuevo alcanza con completar estas variables
+en Render; no hace falta tocar ningún archivo de código:
+
+```env
+BRAND_NAME=Nombre CRM del cliente       # título de pestaña, footer del menú
+BRAND_COMPANY=Nombre corto              # texto en el header
+BRAND_TAGLINE=Frase corta               # debajo del nombre, en el header
+BRAND_SHORT=XX                          # 2-3 letras del mark cuando no hay logo
+BRAND_COLOR=#2563eb                     # color primario (botones, acentos)
+BRAND_COLOR_2=#60a5fa                   # color secundario (degradés)
+BRAND_LOGO_URL=https://.../logo.png     # opcional — si no se define, se usa un mark de texto con BRAND_SHORT
 ```
 
 ## Regla de datos
