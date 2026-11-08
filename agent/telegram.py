@@ -1,16 +1,22 @@
-# agent/telegram.py — Notificaciones Telegram para MC Growth Agency
+# agent/telegram.py — Notificaciones Telegram del negocio
 # Envía alertas al equipo cuando Max califica un lead
 
 import os
 import logging
 import httpx
 from dotenv import load_dotenv
+from agent.tools import cargar_info_negocio
 
 load_dotenv()
 logger = logging.getLogger("agentkit")
 
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+
+def _nombre_negocio() -> str:
+    """Nombre del negocio desde config/business.yaml, para no hardcodear un cliente en el código base."""
+    return cargar_info_negocio().get("negocio", {}).get("nombre", "tu negocio")
 
 
 async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
@@ -39,7 +45,7 @@ async def notificar_lead_calificado(telefono: str, info: dict) -> bool:
     sentiment_label = info.get("sentiment_label", "neutral")
 
     mensaje = (
-        "🔥 *LEAD CALIFICADO — MC Growth Agency*\n\n"
+        f"🔥 *LEAD CALIFICADO — {_nombre_negocio()}*\n\n"
         f"📱 *WhatsApp:* +{telefono_limpio}\n"
         f"👤 *Nombre:* {nombre}\n"
         f"🏢 *Rubro:* {rubro}\n"
@@ -78,7 +84,7 @@ async def notificar_lead_revision(telefono: str, info: dict, motivo: str = "Caso
         return False
     telefono_limpio = telefono.replace("@s.whatsapp.net", "").replace("@c.us", "")
     mensaje = (
-        "⚠️ *REVISAR LEAD — MC Growth Agency*\n\n"
+        f"⚠️ *REVISAR LEAD — {_nombre_negocio()}*\n\n"
         f"📱 *WhatsApp:* +{telefono_limpio}\n"
         f"👤 *Nombre:* {info.get('nombre', 'No indicó')}\n"
         f"🏢 *Rubro:* {info.get('rubro', 'No indicó')}\n"
@@ -114,7 +120,8 @@ async def notificar_nuevo_mensaje(telefono: str, mensaje: str, nombre: str = "",
 
     telefono_limpio = telefono.replace("@s.whatsapp.net", "").replace("@c.us", "")
     texto_corto = mensaje if len(mensaje) <= 300 else mensaje[:300] + "…"
-    encabezado = "💬 *NUEVO CONTACTO — MC Growth Agency*" if es_primer_mensaje else "💬 *Nuevo mensaje — MC Growth Agency*"
+    negocio = _nombre_negocio()
+    encabezado = f"💬 *NUEVO CONTACTO — {negocio}*" if es_primer_mensaje else f"💬 *Nuevo mensaje — {negocio}*"
     linea_nombre = f"👤 *Nombre:* {nombre}\n" if nombre else ""
 
     mensaje_telegram = (
